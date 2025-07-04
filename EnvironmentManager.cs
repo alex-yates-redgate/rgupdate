@@ -1,12 +1,13 @@
 using System.Xml.Linq;
 using System.Diagnostics;
+using System.IO.Compression;
 
 namespace rgupdate;
 
 public static class EnvironmentManager
 {
     private const string InstallLocationEnvVar = "RGUPDATE_INSTALL_LOCATION";
-    
+  
     /// <summary>
     /// Initializes the RGUPDATE_INSTALL_LOCATION environment variable if it doesn't exist
     /// </summary>
@@ -225,10 +226,10 @@ public static class EnvironmentManager
     /// <exception cref="ArgumentException">Thrown for unsupported products</exception>
     public static async Task<List<VersionInfo>> GetAllPublicVersionsAsync(string product, Platform platform)
     {
-        // Check for flyway - not yet supported
+        // Check for flyway - list command not yet supported
         if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException("ERROR: Flyway is not yet supported");
+            throw new NotSupportedException("ERROR: The --list command is not yet supported for flyway");
         }
         
         // Get the appropriate S3 URL for the product and platform
@@ -455,10 +456,15 @@ public static class EnvironmentManager
     {
         try
         {
+            // Flyway uses "flyway version" instead of "flyway --version"
+            var arguments = product.Equals("flyway", StringComparison.OrdinalIgnoreCase) 
+                ? "version" 
+                : "--version";
+            
             var processInfo = new ProcessStartInfo
             {
                 FileName = product.ToLower(),
-                Arguments = "--version",
+                Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -477,6 +483,7 @@ public static class EnvironmentManager
             {
                 // Parse version from output
                 // Expected format might be like "rgsubset version 2.1.13.1440" or just "2.1.13.1440"
+                // For flyway: "Flyway Community Edition 11.0.0 by Redgate"
                 return ParseVersionFromOutput(output.Trim());
             }
         }
@@ -509,14 +516,33 @@ public static class EnvironmentManager
         {
             var trimmedLine = line.Trim();
             
-            // Look for version patterns like "version 2.1.13.1440" or "2.1.13.1440" or "2.1.3.7501+git-hash"
-            var versionMatch = System.Text.RegularExpressions.Regex.Match(
-                trimmedLine, 
-                @"(?:version\s+)?(\d+\.\d+\.\d+(?:\.\d+)?)(?:\+.*)?", 
+            // Special pattern for Flyway: "Flyway Community Edition 11.0.0 by Redgate"
+            // Be more specific to avoid matching version numbers in warning messages
+            var flywayMatch = System.Text.RegularExpressions.Regex.Match(
+                trimmedLine,
+                @"Flyway\s+Community\s+Edition\s+(\d+\.\d+\.\d+(?:\.\d+)?)\s+by\s+Redgate",
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase
             );
             
-            if (versionMatch.Success)
+            if (flywayMatch.Success)
+            {
+                return flywayMatch.Groups[1].Value;
+            }
+            
+            // Look for general version patterns like "version 2.1.13.1440" or "2.1.13.1440" or "2.1.3.7501+git-hash"
+            // But avoid matching version numbers in warning/info messages
+            var versionMatch = System.Text.RegularExpressions.Regex.Match(
+                trimmedLine, 
+                @"(?:^|\s)(?:version\s+)?(\d+\.\d+\.\d+(?:\.\d+)?)(?:\+.*)?(?:\s|$)", 
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase
+            );
+            
+            // Don't match version numbers in warning/info messages
+            if (versionMatch.Success && 
+                !trimmedLine.Contains("WARNING", StringComparison.OrdinalIgnoreCase) &&
+                !trimmedLine.Contains("available", StringComparison.OrdinalIgnoreCase) &&
+                !trimmedLine.Contains("upgrade", StringComparison.OrdinalIgnoreCase) &&
+                !trimmedLine.Contains("find out more", StringComparison.OrdinalIgnoreCase))
             {
                 return versionMatch.Groups[1].Value;
             }
@@ -628,10 +654,113 @@ public static class EnvironmentManager
     /// <returns>The actual version that was installed</returns>
     public static async Task<string> DownloadAndInstallAsync(string product, string? versionSpec = null)
     {
-        // For now, return a placeholder. This method would implement the actual download/install logic
-        var version = versionSpec ?? "latest";
-        Console.WriteLine($"✓ {product} installation completed");
-        return version;
+        var platform = OperatingSystem.IsWindows() ? Platform.Windows : Platform.Linux;
+        
+        // Special handling for flyway
+        if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrEmpty(versionSpec) || versionSpec.Equals("latest", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new NotSupportedException("ERROR: Flyway version listing is not yet supported. Please specify an exact version (e.g., --version 11.0.0)");
+            }
+            
+            // For flyway, use the provided version directly
+            var targetVersion = versionSpec;
+            
+            // Check if already installed
+            var installPath = GetProductInstallPath(product, targetVersion);
+            if (Directory.Exists(installPath) && Directory.GetFiles(installPath, "*", SearchOption.AllDirectories).Length > 0)
+            {
+                Console.WriteLine($"✓ {product} version {targetVersion} is already installed");
+                return targetVersion;
+            }
+            
+            // Download and install
+            Console.WriteLine($"Downloading {product} version {targetVersion}...");
+            
+            var downloadUrl = GetDownloadUrl(product, targetVersion, platform);
+            var tempFilePath = await DownloadFile(downloadUrl, product, targetVersion);
+            
+            try
+            {
+                Console.WriteLine($"Installing {product} version {targetVersion}...");
+                await ExtractAndInstall(tempFilePath, installPath, product);
+                
+                Console.WriteLine($"✓ {product} version {targetVersion} installation completed");
+                return targetVersion;
+            }
+            finally
+            {
+                // Clean up temp file
+                try
+                {
+                    if (File.Exists(tempFilePath))
+                        File.Delete(tempFilePath);
+                }
+                catch { } // Ignore cleanup errors
+            }
+        }
+        
+        // For non-flyway products, use the existing logic
+        
+        // Get available versions
+        var availableVersions = await GetAllPublicVersionsAsync(product, platform);
+        if (availableVersions.Count == 0)
+        {
+            throw new InvalidOperationException($"No versions available for {product}");
+        }
+        
+        // Resolve the version to install
+        string targetVersionNormal;
+        if (string.IsNullOrEmpty(versionSpec) || versionSpec.Equals("latest", StringComparison.OrdinalIgnoreCase))
+        {
+            // Get the latest version
+            var sortedVersions = availableVersions
+                .Select(v => new SemanticVersion(v.Version))
+                .OrderByDescending(v => v)
+                .ToList();
+            
+            targetVersionNormal = sortedVersions.First().OriginalVersion;
+            Console.WriteLine($"Resolved 'latest' to version {targetVersionNormal}");
+        }
+        else
+        {
+            // Try to find exact match or resolve partial version
+            targetVersionNormal = ResolveVersion(versionSpec, availableVersions.Select(v => v.Version).ToList());
+        }
+        
+        // Check if already installed
+        var installPathNormal = GetProductInstallPath(product, targetVersionNormal);
+        if (Directory.Exists(installPathNormal) && Directory.GetFiles(installPathNormal, "*", SearchOption.AllDirectories).Length > 0)
+        {
+            Console.WriteLine($"✓ {product} version {targetVersionNormal} is already installed");
+            return targetVersionNormal;
+        }
+        
+        // Download and install
+        Console.WriteLine($"Downloading {product} version {targetVersionNormal}...");
+        
+        var downloadUrlNormal = GetDownloadUrl(product, targetVersionNormal, platform);
+        var tempFilePathNormal = await DownloadFile(downloadUrlNormal, product, targetVersionNormal);
+        
+        try
+        {
+            Console.WriteLine($"Installing {product} version {targetVersionNormal}...");
+            await ExtractAndInstall(tempFilePathNormal, installPathNormal, product);
+            
+            Console.WriteLine($"✓ {product} version {targetVersionNormal} installation completed");
+            return targetVersionNormal;
+        }
+        finally
+        {
+            // Clean up temp file
+            try
+            {
+                if (File.Exists(tempFilePathNormal))
+                    File.Delete(tempFilePathNormal);
+            }
+            catch { } // Ignore cleanup errors
+        }
     }
 
     /// <summary>
@@ -646,5 +775,264 @@ public static class EnvironmentManager
         return $"Installation diagnostics for {product} {version}: Basic validation completed";
     }
 
-
+    /// <summary>
+    /// Gets the installation path for a product version
+    /// </summary>
+    private static string GetProductInstallPath(string product, string version)
+    {
+        var installLocation = GetInstallLocation();
+        var productMapping = new Dictionary<string, (string Family, string CliFolder)>
+        {
+            ["flyway"] = ("Flyway", "CLI"),
+            ["rgsubset"] = ("Test Data Manager", "rgsubset"),
+            ["rganonymize"] = ("Test Data Manager", "rganonymize")
+        };
+        
+        if (!productMapping.TryGetValue(product.ToLower(), out var productInfo))
+        {
+            throw new ArgumentException($"Unsupported product: {product}");
+        }
+        
+        return Path.Combine(installLocation, productInfo.Family, productInfo.CliFolder, version);
+    }
+    
+    /// <summary>
+    /// Resolves a version specification to an actual version
+    /// </summary>
+    private static string ResolveVersion(string versionSpec, List<string> availableVersions)
+    {
+        // Try exact match first
+        var exactMatch = availableVersions.FirstOrDefault(v => 
+            string.Equals(v, versionSpec, StringComparison.OrdinalIgnoreCase));
+        if (exactMatch != null)
+            return exactMatch;
+        
+        // Try partial match (e.g., "11" matches "11.10.1")
+        var partialMatches = availableVersions
+            .Where(v => v.StartsWith(versionSpec + ".", StringComparison.OrdinalIgnoreCase))
+            .Select(v => new SemanticVersion(v))
+            .OrderByDescending(v => v)
+            .ToList();
+        
+        if (partialMatches.Count > 0)
+        {
+            var resolved = partialMatches.First().OriginalVersion;
+            Console.WriteLine($"Resolved '{versionSpec}' to version {resolved}");
+            return resolved;
+        }
+        
+        throw new ArgumentException($"Version '{versionSpec}' not found. Available versions: {string.Join(", ", availableVersions.Take(5))}...");
+    }
+    
+    /// <summary>
+    /// Gets the download URL for a specific product version and platform
+    /// </summary>
+    private static string GetDownloadUrl(string product, string version, Platform platform)
+    {
+        return product.ToLower() switch
+        {
+            "flyway" => platform switch
+            {
+                Platform.Windows => $"https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/{version}/flyway-commandline-{version}-windows-x64.zip",
+                Platform.Linux => $"https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/{version}/flyway-commandline-{version}-linux-x64.tar.gz",
+                _ => throw new ArgumentException($"Unsupported platform for flyway: {platform}")
+            },
+            "rgsubset" => platform switch
+            {
+                Platform.Windows => $"https://redgate-download.s3.eu-west-1.amazonaws.com/EAP/SubsetterWin64/SubsetterWin64_{version}.zip",
+                Platform.Linux => $"https://redgate-download.s3.eu-west-1.amazonaws.com/EAP/SubsetterLinux64/SubsetterLinux64_{version}.tar.gz",
+                _ => throw new ArgumentException($"Unsupported platform for rgsubset: {platform}")
+            },
+            "rganonymize" => platform switch
+            {
+                Platform.Windows => $"https://redgate-download.s3.eu-west-1.amazonaws.com/EAP/AnonymizeWin64/AnonymizeWin64_{version}.zip",
+                Platform.Linux => $"https://redgate-download.s3.eu-west-1.amazonaws.com/EAP/AnonymizeLinux64/AnonymizeLinux64_{version}.tar.gz",
+                _ => throw new ArgumentException($"Unsupported platform for rganonymize: {platform}")
+            },
+            _ => throw new ArgumentException($"Unsupported product: {product}")
+        };
+    }
+    
+    /// <summary>
+    /// Downloads a file from the specified URL
+    /// </summary>
+    private static async Task<string> DownloadFile(string url, string product, string version)
+    {
+        var tempDir = Path.GetTempPath();
+        var fileName = Path.GetFileName(new Uri(url).LocalPath);
+        var tempFilePath = Path.Combine(tempDir, $"{product}-{version}-{fileName}");
+        
+        using var httpClient = new HttpClient();
+        httpClient.Timeout = TimeSpan.FromMinutes(10); // Longer timeout for large files
+        
+        try
+        {
+            Console.WriteLine($"Downloading from: {url}");
+            using var response = await httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            
+            var totalBytes = response.Content.Headers.ContentLength ?? 0;
+            var downloadedBytes = 0L;
+            
+            using var contentStream = await response.Content.ReadAsStreamAsync();
+            using var fileStream = new FileStream(tempFilePath, FileMode.Create, FileAccess.Write, FileShare.None);
+            
+            var buffer = new byte[8192];
+            int bytesRead;
+            var lastReportTime = DateTime.UtcNow;
+            
+            while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+            {
+                await fileStream.WriteAsync(buffer, 0, bytesRead);
+                downloadedBytes += bytesRead;
+                
+                // Report progress every 2 seconds
+                if (DateTime.UtcNow - lastReportTime > TimeSpan.FromSeconds(2))
+                {
+                    if (totalBytes > 0)
+                    {
+                        var percentage = (double)downloadedBytes / totalBytes * 100;
+                        Console.WriteLine($"Progress: {percentage:F1}% ({FormatBytes(downloadedBytes)} / {FormatBytes(totalBytes)})");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Downloaded: {FormatBytes(downloadedBytes)}");
+                    }
+                    lastReportTime = DateTime.UtcNow;
+                }
+            }
+            
+            Console.WriteLine($"✓ Download completed: {FormatBytes(downloadedBytes)}");
+            return tempFilePath;
+        }
+        catch (Exception ex)
+        {
+            // Clean up partial download
+            try
+            {
+                if (File.Exists(tempFilePath))
+                    File.Delete(tempFilePath);
+            }
+            catch { }
+            
+            throw new InvalidOperationException($"Failed to download {product} version {version}: {ex.Message}", ex);
+        }
+    }
+    
+    /// <summary>
+    /// Extracts and installs the downloaded file
+    /// </summary>
+    private static async Task ExtractAndInstall(string archiveFilePath, string installPath, string product)
+    {
+        // Ensure install directory exists
+        Directory.CreateDirectory(installPath);
+        
+        var isZip = archiveFilePath.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+        var isTarGz = archiveFilePath.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase);
+        
+        if (isZip)
+        {
+            await ExtractZip(archiveFilePath, installPath, product);
+        }
+        else if (isTarGz)
+        {
+            await ExtractTarGz(archiveFilePath, installPath, product);
+        }
+        else
+        {
+            throw new InvalidOperationException($"Unsupported archive format: {Path.GetExtension(archiveFilePath)}");
+        }
+    }
+    
+    /// <summary>
+    /// Extracts a ZIP archive
+    /// </summary>
+    private static Task ExtractZip(string zipFilePath, string installPath, string product)
+    {
+        try
+        {
+            using var archive = System.IO.Compression.ZipFile.OpenRead(zipFilePath);
+            
+            foreach (var entry in archive.Entries)
+            {
+                if (string.IsNullOrEmpty(entry.Name)) // Skip directories
+                    continue;
+                
+                // For flyway, we want to skip the top-level directory in the zip
+                var relativePath = entry.FullName;
+                if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Skip the first directory level (e.g., "flyway-11.10.1/")
+                    var pathParts = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (pathParts.Length > 1)
+                    {
+                        relativePath = string.Join("/", pathParts.Skip(1));
+                    }
+                    else
+                    {
+                        continue; // Skip the top-level directory entry itself
+                    }
+                }
+                
+                var destinationPath = Path.Combine(installPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                
+                // Ensure directory exists
+                var destinationDir = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrEmpty(destinationDir))
+                {
+                    Directory.CreateDirectory(destinationDir);
+                }
+                
+                // Extract file
+                entry.ExtractToFile(destinationPath, overwrite: true);
+                
+                // Set executable permissions on Unix-like systems
+                if (!OperatingSystem.IsWindows() && (
+                    relativePath.EndsWith(".sh") || 
+                    (Path.GetDirectoryName(relativePath)?.EndsWith("bin") == true && !Path.HasExtension(relativePath))))
+                {
+                    // This is a simplified approach - in practice you'd use proper Unix permissions
+                    // For now, we'll just ensure the file exists
+                }
+            }
+            
+            Console.WriteLine($"✓ Extracted {archive.Entries.Count} files");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to extract ZIP archive: {ex.Message}", ex);
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// Extracts a TAR.GZ archive (placeholder for Linux support)
+    /// </summary>
+    private static Task ExtractTarGz(string tarGzFilePath, string installPath, string product)
+    {
+        // For now, this is a placeholder. In a real implementation, you'd use a library like SharpZipLib
+        // or call out to the system tar command
+        throw new NotImplementedException("TAR.GZ extraction is not yet implemented. This will be added for Linux support.");
+    }
+    
+    /// <summary>
+    /// Formats byte count as human-readable string
+    /// </summary>
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes == 0) return "0 B";
+        
+        string[] sizes = { "B", "KB", "MB", "GB", "TB" };
+        int order = 0;
+        double size = bytes;
+        
+        while (size >= 1024 && order < sizes.Length - 1)
+        {
+            order++;
+            size = size / 1024;
+        }
+        
+        return $"{size:0.#} {sizes[order]}";
+    }
 }

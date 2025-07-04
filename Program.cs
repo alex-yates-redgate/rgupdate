@@ -178,7 +178,7 @@ class Program
                 
                 // Validate the installation
                 Console.WriteLine("Validating installation...");
-                var isValid = await ValidateInstallationAsync(product, installedVersion);
+                var isValid = ValidateInstallation(product, installedVersion);
                 
                 if (isValid)
                 {
@@ -262,7 +262,7 @@ class Program
                 }
                 
                 // Validate the installation
-                var isValid = await ValidateInstallationAsync(product, targetVersion);
+                var isValid = ValidateInstallation(product, targetVersion);
                 if (!isValid)
                 {
                     Console.WriteLine($"❌ Version {targetVersion} failed validation");
@@ -317,7 +317,7 @@ class Program
                 // Handle flyway specifically
                 if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
                 {
-                    Console.WriteLine("ERROR: Flyway is not yet supported");
+                    Console.WriteLine("ERROR: The --list command is not yet supported for flyway");
                     return;
                 }
                 
@@ -466,7 +466,7 @@ class Program
                 
                 // Show active version validation information
                 Console.WriteLine();
-                await DisplayActiveVersionValidationAsync(product, activeVersionInfo);
+                DisplayActiveVersionValidation(product, activeVersionInfo);
             }
             catch (Exception ex)
             {
@@ -744,7 +744,7 @@ class Program
     {
         var command = new Command("info", "Show rgupdate configuration and environment information");
 
-        command.SetHandler(async () =>
+        command.SetHandler(() =>
         {
             Console.WriteLine("rgupdate Configuration Information");
             Console.WriteLine("=================================");
@@ -778,8 +778,6 @@ class Program
             Console.WriteLine($"  Machine: {Environment.MachineName}");
             Console.WriteLine($"  Current Culture: {CultureInfo.CurrentCulture.Name}");
             Console.WriteLine($"  Current UI Culture: {CultureInfo.CurrentUICulture.Name}");
-            
-            await Task.CompletedTask;
         });
 
         return command;
@@ -812,7 +810,7 @@ class Program
     /// <param name="product">The product name</param>
     /// <param name="version">The version to validate</param>
     /// <returns>True if validation passed, false otherwise</returns>
-    private static async Task<bool> ValidateInstallationAsync(string product, string version)
+    private static bool ValidateInstallation(string product, string version)
     {
         try
         {
@@ -959,7 +957,7 @@ class Program
     /// <summary>
     /// Ensures that a directory is in the system PATH
     /// </summary>
-    private static async Task EnsureInPathAsync(string directoryPath)
+    private static Task EnsureInPathAsync(string directoryPath)
     {
         try
         {
@@ -997,13 +995,13 @@ class Program
             if (isInSystemPath)
             {
                 Console.WriteLine($"✓ Directory already in SYSTEM PATH: {directoryPath}");
-                return;
+                return Task.CompletedTask;
             }
             
             if (isInUserPath)
             {
                 Console.WriteLine($"✓ Directory already in user PATH: {directoryPath}");
-                return;
+                return Task.CompletedTask;
             }
             
             // Try to add to SYSTEM PATH first
@@ -1064,7 +1062,7 @@ class Program
             Console.WriteLine($"⚠ Warning: Error managing PATH: {ex.Message}");
         }
         
-        await Task.CompletedTask;
+        return Task.CompletedTask;
     }
     
     /// <summary>
@@ -1146,29 +1144,60 @@ class Program
             return (false, "Installation directory not found");
         }
         
-        // Find the executable
-        var executableName = $"{product}.exe";
-        var executablePath = Path.Combine(installPath, executableName);
+        // Find the executable - different for flyway
+        string executablePath;
+        string arguments;
         
-        if (!File.Exists(executablePath))
+        if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
         {
-            // Try to find any .exe file in the directory
-            var exeFiles = Directory.GetFiles(installPath, "*.exe");
-            if (exeFiles.Length == 0)
+            // For flyway, the executable is directly in the installation directory
+            var flywayExeNames = new[] { "flyway.cmd", "flyway.exe", "flyway" };
+            executablePath = null;
+            
+            foreach (var exeName in flywayExeNames)
             {
-                return (false, "No executable files found");
+                var tryPath = Path.Combine(installPath, exeName);
+                if (File.Exists(tryPath))
+                {
+                    executablePath = tryPath;
+                    break;
+                }
             }
-            executablePath = exeFiles.First();
-            executableName = Path.GetFileName(executablePath);
+            
+            if (executablePath == null)
+            {
+                return (false, "Flyway executable not found");
+            }
+            
+            arguments = "version"; // Flyway uses "version" not "--version"
+        }
+        else
+        {
+            // For other products (rgsubset, rganonymize)
+            var executableName = $"{product}.exe";
+            executablePath = Path.Combine(installPath, executableName);
+            
+            if (!File.Exists(executablePath))
+            {
+                // Try to find any .exe file in the directory
+                var exeFiles = Directory.GetFiles(installPath, "*.exe");
+                if (exeFiles.Length == 0)
+                {
+                    return (false, "No executable files found");
+                }
+                executablePath = exeFiles.First();
+            }
+            
+            arguments = "--version"; // Standard --version argument
         }
         
         try
         {
-            // Run the executable with --version
+            // Run the executable with appropriate version argument
             var processInfo = new ProcessStartInfo
             {
                 FileName = executablePath,
-                Arguments = "--version",
+                Arguments = arguments,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -1253,11 +1282,39 @@ class Program
     {
         var info = new ActiveVersionInfo();
         var activePath = GetProductActivePath(product);
-        var executableName = product.ToLower() + (OperatingSystem.IsWindows() ? ".exe" : "");
-        var activeExecutablePath = Path.Combine(activePath, executableName);
+        
+        // Handle different executable structures for different products
+        string activeExecutablePath;
+        string versionArgument;
+        
+        if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
+        {
+            // For flyway, the executable is directly in the active directory
+            var flywayExeNames = new[] { "flyway.cmd", "flyway.exe", "flyway" };
+            activeExecutablePath = null;
+            
+            foreach (var exeName in flywayExeNames)
+            {
+                var tryPath = Path.Combine(activePath, exeName);
+                if (File.Exists(tryPath))
+                {
+                    activeExecutablePath = tryPath;
+                    break;
+                }
+            }
+            
+            versionArgument = "version";
+        }
+        else
+        {
+            // For other products (rgsubset, rganonymize)
+            var executableName = product.ToLower() + (OperatingSystem.IsWindows() ? ".exe" : "");
+            activeExecutablePath = Path.Combine(activePath, executableName);
+            versionArgument = "--version";
+        }
         
         // Check if active directory exists and has the executable
-        if (Directory.Exists(activePath) && File.Exists(activeExecutablePath))
+        if (Directory.Exists(activePath) && activeExecutablePath != null && File.Exists(activeExecutablePath))
         {
             info.ActiveDirectoryExists = true;
             
@@ -1267,7 +1324,7 @@ class Program
                 var processInfo = new ProcessStartInfo
                 {
                     FileName = activeExecutablePath,
-                    Arguments = "--version",
+                    Arguments = versionArgument,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -1375,7 +1432,7 @@ class Program
     /// <summary>
     /// Displays active version validation information
     /// </summary>
-    private static async Task DisplayActiveVersionValidationAsync(string product, ActiveVersionInfo activeVersionInfo)
+    private static void DisplayActiveVersionValidation(string product, ActiveVersionInfo activeVersionInfo)
     {
         Console.WriteLine("Active Version Status:");
         Console.WriteLine("======================");
