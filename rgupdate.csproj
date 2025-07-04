@@ -7,6 +7,10 @@
     <Nullable>enable</Nullable>
     <AssemblyName>rgupdate</AssemblyName>
     <RootNamespace>rgupdate</RootNamespace>
+    <!-- Self-contained deployment optimization -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <PublishSingleFile>false</PublishSingleFile>
+    <TrimMode>partial</TrimMode>
   </PropertyGroup>
 
   <ItemGroup>

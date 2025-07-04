@@ -57,13 +57,14 @@ jobs:
       shell: bash
       run: |
         mkdir -p ./artifacts
-        cp ./publish/${{ matrix.runtime }}/rgupdate${{ matrix.executable-extension }} ./artifacts/
+        # Copy all published files to artifacts directory
+        cp -r ./publish/${{ matrix.runtime }}/* ./artifacts/
         
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.artifact-name }}
-        path: ./artifacts/rgupdate${{ matrix.executable-extension }}
+        path: ./artifacts/
         retention-days: 90
 
   create-release-info:
