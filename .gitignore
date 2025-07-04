@@ -39,3 +39,9 @@ Thumbs.db
 *.tmp
 *.temp
 *~
+
+# Test projects (if recreated)
+*.Tests/
+
+# Publish output directories
+publish/
