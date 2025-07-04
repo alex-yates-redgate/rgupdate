@@ -121,7 +121,7 @@ public static class EnvironmentManager
     /// <summary>
     /// Refreshes the current process's environment variables from the system
     /// </summary>
-    private static void RefreshEnvironmentVariables()
+    internal static void RefreshEnvironmentVariables()
     {
         // This is a simplified approach - in practice, you might need platform-specific code
         // to fully refresh environment variables in the current process

@@ -82,16 +82,23 @@ rgupdate use rgsubset --version latest
 Lists available versions of a product, showing the most recent 10 versions by default, along with installation and active status.
 
 ```bash
-rgupdate list [product] [--all]
+rgupdate list [product] [--all] [--output format]
 ```
 
 **Examples:**
 ```bash
 rgupdate list rgsubset
 rgupdate list rgsubset --all
+rgupdate list rgsubset --output json
+rgupdate list rganonymize --output yaml
 ```
 
-**Sample Output:**
+**Output Formats:**
+- **Default (table)**: Human-readable table format
+- **JSON**: Machine-readable JSON format (`--output json`)
+- **YAML**: Machine-readable YAML format (`--output yaml`)
+
+**Sample Table Output:**
 ```
 Version         | Release Date  | Size      | Status
 ----------------|---------------|-----------|--------
@@ -109,6 +116,29 @@ Version         | Release Date  | Size      | Status
 2.1.3.7501      | 2025-01-14    | 37.3 MB   | ACTIVE
 
 42 older versions (To see all versions, run: rgupdate list rgsubset --all)
+```
+
+**Sample JSON Output:**
+```json
+{
+  "product": "rgsubset",
+  "activeVersion": "2.1.3.7501",
+  "totalVersions": 54,
+  "displayedVersions": 10,
+  "showingAll": false,
+  "versions": [
+    {
+      "version": "2.1.15.1477",
+      "releaseDate": "2025-06-24",
+      "sizeBytes": 39252723,
+      "sizeFormatted": "37.4 MB",
+      "status": "-",
+      "isLocalOnly": false,
+      "isInstalled": false,
+      "isActive": false
+    }
+  ]
+}
 ```
 
 ### remove
@@ -165,6 +195,40 @@ Supported Products:
     Active path:  C:\Program Files\Red Gate\Test Data Manager\rgsubset\active
 ```
 
+### config
+Configure rgupdate settings, including the installation location.
+
+#### set-location
+Changes the installation location where rgupdate stores downloaded tools.
+
+```bash
+rgupdate config set-location <path> [--force]
+```
+
+**Examples:**
+```bash
+# Change to a custom directory
+rgupdate config set-location "D:\MyTools\RedGate"
+
+# Use environment variables
+rgupdate config set-location "%USERPROFILE%\RedGateTools"
+
+# Force change despite existing installations
+rgupdate config set-location "C:\RedGate" --force
+```
+
+**Features:**
+- **Safety Warnings**: Warns if existing installations will be left behind
+- **Environment Variable Expansion**: Supports variables like `%USERPROFILE%`, `%TEMP%`, etc.
+- **Permission Handling**: Automatically falls back to user-level if admin rights unavailable  
+- **Path Validation**: Creates directories and verifies write permissions
+- **Force Override**: Use `--force` to bypass safety warnings
+
+**Important Notes:**
+- Existing installations are NOT moved automatically
+- You may need to restart your terminal after changing the location
+- Use `rgupdate info` to verify the change took effect
+
 ## Version Formats
 
 The `--version` parameter accepts several formats:
@@ -190,6 +254,27 @@ You can check the current configuration using:
 ```bash
 rgupdate info
 ```
+
+You can change the installation location using:
+```bash
+rgupdate config set-location <new-path>
+```
+
+## Structured Output for Automation
+
+The `list` command supports structured output formats for automation and scripting:
+
+**JSON Output:**
+```bash
+rgupdate list rgsubset --output json | jq '.versions[0].version'
+```
+
+**YAML Output:**
+```bash
+rgupdate list rgsubset --output yaml
+```
+
+This enables integration with build systems, deployment scripts, and other automation tools that need to programmatically work with version information.
 
 ## Installation Paths
 
@@ -242,14 +327,27 @@ Or use the compiled executable:
 ## Development
 
 The application is built using:
-- **.NET 8.0**: For cross-platform compatibility
+- **.NET 9.0**: For cross-platform compatibility
 - **System.CommandLine**: For modern CLI parsing and help generation
+- **YamlDotNet**: For YAML serialization in structured output
 - **Async/await**: For responsive command execution
 
 ### Project Structure
 ```
 rgupdate/
 ├── Program.cs          # Main application and command definitions
+├── CommandHandlers.cs  # Shared command option definitions
+├── ConfigService.cs    # Configuration management (install location)
+├── ListingService.cs   # Version listing with structured output support
+├── EnvironmentManager.cs # Environment and installation management
+├── ValidationService.cs # Product validation logic
+├── InfoService.cs      # System information display
+├── InstallationService.cs # Product download and installation
+├── ActivationService.cs # Version activation and PATH management
+├── RemovalService.cs   # Version removal and cleanup
+├── PathManager.cs      # Installation path management
+├── ProductInfo.cs      # Product configuration and metadata
+├── Constants.cs        # Application constants
 ├── rgupdate.csproj     # Project configuration
 ├── rgupdate.sln        # Solution file
 └── README.md           # This file
@@ -263,10 +361,15 @@ rgupdate/
 
 ## Contributing
 
-This is a Red Gate internal tool. Future enhancements may include:
+This is a Red Gate internal tool. Recent enhancements include:
+- **Structured Output**: JSON/YAML output for automation (v1.1)
+- **Configuration Management**: Custom install location support (v1.1)
+- **Improved Error Handling**: Better permission and path management
+
+Future enhancements may include:
 - Additional product support (sqlcompare, etc.)
 - Advanced version resolution
-- Improved PATH management
+- Enhanced automation features
 - Configuration file support
 
 ## License

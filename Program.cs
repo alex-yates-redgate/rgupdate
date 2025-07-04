@@ -44,7 +44,8 @@ class Program
             CreateListCommand(),
             CreateRemoveCommand(),
             CreatePurgeCommand(),
-            CreateInfoCommand()
+            CreateInfoCommand(),
+            CreateConfigCommand()
         };
 
         return await rootCommand.InvokeAsync(args);
@@ -196,6 +197,36 @@ class Program
             }
         }, productArgument, keepOption, forceOption);
 
+        return command;
+    }
+
+    private static Command CreateConfigCommand()
+    {
+        var command = new Command("config", "Configure rgupdate settings");
+        
+        // Add set-location subcommand
+        var setLocationCommand = new Command("set-location", "Set the installation location for rgupdate");
+        var pathArgument = new Argument<string>("path", "The new installation path");
+        var forceOption = CommandHandlers.CreateForceOption();
+        
+        setLocationCommand.AddArgument(pathArgument);
+        setLocationCommand.AddOption(forceOption);
+        
+        setLocationCommand.SetHandler(async (string path, bool force) =>
+        {
+            try
+            {
+                await ConfigService.SetInstallLocationAsync(path, force);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Configuration failed: {ex.Message}");
+                Environment.Exit(1);
+            }
+        }, pathArgument, forceOption);
+        
+        command.AddCommand(setLocationCommand);
+        
         return command;
     }
 
