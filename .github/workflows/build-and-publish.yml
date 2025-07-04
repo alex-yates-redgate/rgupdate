@@ -1,0 +1,88 @@
+name: Build and Publish
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        include:
+          - os: windows-latest
+            runtime: win-x64
+            artifact-name: rgupdate-windows
+            executable-extension: .exe
+          - os: ubuntu-latest
+            runtime: linux-x64
+            artifact-name: rgupdate-linux
+            executable-extension: ""
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Test
+      run: dotnet test --configuration Release --no-build --verbosity normal
+
+    - name: Publish
+      run: dotnet publish --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
+
+    - name: Create artifact directory
+      shell: bash
+      run: |
+        mkdir -p ./artifacts
+        cp ./publish/${{ matrix.runtime }}/rgupdate${{ matrix.executable-extension }} ./artifacts/
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact-name }}
+        path: ./artifacts/rgupdate${{ matrix.executable-extension }}
+        retention-days: 90
+
+  create-release-info:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Create build info
+      run: |
+        echo "# Build Information" > build-info.md
+        echo "" >> build-info.md
+        echo "**Commit:** ${{ github.sha }}" >> build-info.md
+        echo "**Branch:** ${{ github.ref_name }}" >> build-info.md
+        echo "**Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> build-info.md
+        echo "**Workflow:** ${{ github.workflow }}" >> build-info.md
+        echo "**Run Number:** ${{ github.run_number }}" >> build-info.md
+        echo "" >> build-info.md
+        echo "## Downloads" >> build-info.md
+        echo "- Windows: rgupdate-windows" >> build-info.md
+        echo "- Linux: rgupdate-linux" >> build-info.md
+        
+    - name: Upload build info
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-info
+        path: build-info.md
+        retention-days: 90
