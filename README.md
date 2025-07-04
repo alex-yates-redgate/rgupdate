@@ -69,23 +69,28 @@ rgupdate list [product] [--all]
 
 **Examples:**
 ```bash
-rgupdate list flyway
-rgupdate list flyway --all
+rgupdate list rgsubset
+rgupdate list rgsubset --all
 ```
 
 **Sample Output:**
 ```
-Version         | Release date  | Status
-----------------|---------------|--------
-8.1.23          | 2025-07-04    | -
-7.1.23          | 2025-06-04    | -
-6.15.23         | 2025-05-04    | ACTIVE
-6.1.23          | 2025-04-04    | -
-5.1.23          | 2025-03-04    | installed
-4.1.23          | 2025-02-04    | -
-3.1.23          | 2025-01-04    | installed
+Version         | Release Date  | Size      | Status
+----------------|---------------|-----------|--------
+2.1.15.1477     | 2025-06-24    | 37.4 MB   | -
+2.1.14.1471     | 2025-06-24    | 37.4 MB   | -
+2.1.13.1440     | 2025-06-23    | 37.4 MB   | installed
+2.1.12.1380     | 2025-06-17    | 38.4 MB   | -
+2.1.10.8038     | 2025-05-21    | 37.4 MB   | -
+2.1.9.7997      | 2025-05-19    | 37.4 MB   | installed
+2.1.8.7948      | 2025-05-09    | 37.4 MB   | -
+2.1.7.7933      | 2025-05-08    | 37.4 MB   | -
+2.1.6.7744      | 2025-03-19    | 37.1 MB   | -
+2.1.5.7733      | 2025-03-18    | 37.1 MB   | -
+2.1.4.7676      | 2025-02-27    | 37.1 MB   | -
+2.1.3.7501      | 2025-01-14    | 37.3 MB   | ACTIVE
 
-78 older versions (To see all versions, run: rgupdate list flyway --all)
+42 older versions (To see all versions, run: rgupdate list rgsubset --all)
 ```
 
 ### remove
