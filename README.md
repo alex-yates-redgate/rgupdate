@@ -245,3 +245,7 @@ This is a Red Gate internal tool. Future enhancements may include:
 - Advanced version resolution
 - Improved PATH management
 - Configuration file support
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
