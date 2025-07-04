@@ -34,12 +34,12 @@ jobs:
         dotnet-version: '9.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore --verbosity normal
+      run: dotnet restore rgupdate.csproj --verbosity normal
       env:
         DOTNET_SYSTEM_NET_HTTP_USESOCKETSHTTPHANDLER: 0
 
     - name: Build
-      run: dotnet build --configuration Release --no-restore --verbosity normal
+      run: dotnet build rgupdate.csproj --configuration Release --no-restore --verbosity normal
 
     - name: Test
       run: |
@@ -51,7 +51,7 @@ jobs:
       shell: bash
 
     - name: Publish
-      run: dotnet publish --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
+      run: dotnet publish rgupdate.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
 
     - name: Create artifact directory
       shell: bash

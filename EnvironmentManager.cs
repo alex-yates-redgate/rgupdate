@@ -6,8 +6,6 @@ namespace rgupdate;
 
 public static class EnvironmentManager
 {
-    private const string InstallLocationEnvVar = "RGUPDATE_INSTALL_LOCATION";
-  
     /// <summary>
     /// Initializes the RGUPDATE_INSTALL_LOCATION environment variable if it doesn't exist
     /// </summary>
@@ -19,26 +17,26 @@ public static class EnvironmentManager
             RefreshEnvironmentVariables();
             
             // Check both machine and user level environment variables
-            var installLocation = Environment.GetEnvironmentVariable(InstallLocationEnvVar, EnvironmentVariableTarget.Machine) ??
-                                Environment.GetEnvironmentVariable(InstallLocationEnvVar, EnvironmentVariableTarget.User);
+            var installLocation = Environment.GetEnvironmentVariable(Constants.InstallLocationEnvVar, EnvironmentVariableTarget.Machine) ??
+                                Environment.GetEnvironmentVariable(Constants.InstallLocationEnvVar, EnvironmentVariableTarget.User);
             
             if (string.IsNullOrEmpty(installLocation))
             {
-                Console.WriteLine($"Environment variable {InstallLocationEnvVar} not found. Setting up default location...");
+                Console.WriteLine($"Environment variable {Constants.InstallLocationEnvVar} not found. Setting up default location...");
                 
                 var defaultLocation = GetDefaultInstallLocation();
                 
                 try
                 {
                     // Try to set the machine-level environment variable
-                    Environment.SetEnvironmentVariable(InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.Machine);
-                    Console.WriteLine($"✓ Set {InstallLocationEnvVar} = {defaultLocation} (machine-level)");
+                    Environment.SetEnvironmentVariable(Constants.InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.Machine);
+                    Console.WriteLine($"✓ Set {Constants.InstallLocationEnvVar} = {defaultLocation} (machine-level)");
                     
                     // Refresh variables again to pick up the new setting
                     RefreshEnvironmentVariables();
                     
                     // Verify the variable was set correctly
-                    var verifyLocation = Environment.GetEnvironmentVariable(InstallLocationEnvVar, EnvironmentVariableTarget.Machine);
+                    var verifyLocation = Environment.GetEnvironmentVariable(Constants.InstallLocationEnvVar, EnvironmentVariableTarget.Machine);
                     if (verifyLocation == defaultLocation)
                     {
                         Console.WriteLine("✓ Environment variable verified successfully");
@@ -56,8 +54,8 @@ public static class EnvironmentManager
                     try
                     {
                         // Fallback to user-level environment variable
-                        Environment.SetEnvironmentVariable(InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.User);
-                        Console.WriteLine($"✓ Set {InstallLocationEnvVar} = {defaultLocation} (user-level)");
+                        Environment.SetEnvironmentVariable(Constants.InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.User);
+                        Console.WriteLine($"✓ Set {Constants.InstallLocationEnvVar} = {defaultLocation} (user-level)");
                         Console.WriteLine("  Note: Run as Administrator to set machine-level variable for all users.");
                     }
                     catch (Exception userEx)
@@ -73,8 +71,8 @@ public static class EnvironmentManager
                     
                     try
                     {
-                        Environment.SetEnvironmentVariable(InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.User);
-                        Console.WriteLine($"✓ Set {InstallLocationEnvVar} = {defaultLocation} (user-level)");
+                        Environment.SetEnvironmentVariable(Constants.InstallLocationEnvVar, defaultLocation, EnvironmentVariableTarget.User);
+                        Console.WriteLine($"✓ Set {Constants.InstallLocationEnvVar} = {defaultLocation} (user-level)");
                     }
                     catch (Exception userEx)
                     {
@@ -144,8 +142,8 @@ public static class EnvironmentManager
     public static string GetInstallLocation()
     {
         // Try machine-level first, then user-level
-        var location = Environment.GetEnvironmentVariable(InstallLocationEnvVar, EnvironmentVariableTarget.Machine) ??
-                      Environment.GetEnvironmentVariable(InstallLocationEnvVar, EnvironmentVariableTarget.User);
+        var location = Environment.GetEnvironmentVariable(Constants.InstallLocationEnvVar, EnvironmentVariableTarget.Machine) ??
+                      Environment.GetEnvironmentVariable(Constants.InstallLocationEnvVar, EnvironmentVariableTarget.User);
         
         if (string.IsNullOrEmpty(location))
         {
@@ -384,20 +382,7 @@ public static class EnvironmentManager
         
         try
         {
-            var installLocation = GetInstallLocation();
-            var productMapping = new Dictionary<string, (string Family, string CliFolder)>
-            {
-                ["flyway"] = ("Flyway", "CLI"),
-                ["rgsubset"] = ("Test Data Manager", "rgsubset"),
-                ["rganonymize"] = ("Test Data Manager", "rganonymize")
-            };
-            
-            if (!productMapping.TryGetValue(product.ToLower(), out var productInfo))
-            {
-                return installedVersions; // Return empty list for unknown products
-            }
-            
-            var productPath = Path.Combine(installLocation, productInfo.Family, productInfo.CliFolder);
+            var productPath = PathManager.GetProductBasePath(product);
             
             if (!Directory.Exists(productPath))
             {
@@ -411,7 +396,7 @@ public static class EnvironmentManager
                 var dirName = Path.GetFileName(directory);
                 
                 // Skip the "active" directory - this is a special symlink/copy, not a version
-                if (dirName.Equals("active", StringComparison.OrdinalIgnoreCase))
+                if (dirName.Equals(Constants.ActiveVersionDirectoryName, StringComparison.OrdinalIgnoreCase))
                     continue;
                 
                 // Check if the directory name looks like a version (contains dots)
@@ -561,20 +546,7 @@ public static class EnvironmentManager
     {
         try
         {
-            var installLocation = GetInstallLocation();
-            var productMapping = new Dictionary<string, (string Family, string CliFolder)>
-            {
-                ["flyway"] = ("Flyway", "CLI"),
-                ["rgsubset"] = ("Test Data Manager", "rgsubset"),
-                ["rganonymize"] = ("Test Data Manager", "rganonymize")
-            };
-            
-            if (!productMapping.TryGetValue(product.ToLower(), out var productInfo))
-            {
-                return Task.FromResult<VersionInfo?>(null);
-            }
-            
-            var versionPath = Path.Combine(installLocation, productInfo.Family, productInfo.CliFolder, version);
+            var versionPath = PathManager.GetProductVersionPath(product, version);
             
             if (!Directory.Exists(versionPath))
             {
@@ -780,20 +752,7 @@ public static class EnvironmentManager
     /// </summary>
     private static string GetProductInstallPath(string product, string version)
     {
-        var installLocation = GetInstallLocation();
-        var productMapping = new Dictionary<string, (string Family, string CliFolder)>
-        {
-            ["flyway"] = ("Flyway", "CLI"),
-            ["rgsubset"] = ("Test Data Manager", "rgsubset"),
-            ["rganonymize"] = ("Test Data Manager", "rganonymize")
-        };
-        
-        if (!productMapping.TryGetValue(product.ToLower(), out var productInfo))
-        {
-            throw new ArgumentException($"Unsupported product: {product}");
-        }
-        
-        return Path.Combine(installLocation, productInfo.Family, productInfo.CliFolder, version);
+        return PathManager.GetProductVersionPath(product, version);
     }
     
     /// <summary>
@@ -863,7 +822,7 @@ public static class EnvironmentManager
         var tempFilePath = Path.Combine(tempDir, $"{product}-{version}-{fileName}");
         
         using var httpClient = new HttpClient();
-        httpClient.Timeout = TimeSpan.FromMinutes(10); // Longer timeout for large files
+        httpClient.Timeout = TimeSpan.FromMinutes(Constants.DownloadTimeoutMinutes); // Longer timeout for large files
         
         try
         {
@@ -887,7 +846,7 @@ public static class EnvironmentManager
                 downloadedBytes += bytesRead;
                 
                 // Report progress every 2 seconds
-                if (DateTime.UtcNow - lastReportTime > TimeSpan.FromSeconds(2))
+                if (DateTime.UtcNow - lastReportTime > TimeSpan.FromSeconds(Constants.ProgressReportIntervalSeconds))
                 {
                     if (totalBytes > 0)
                     {
