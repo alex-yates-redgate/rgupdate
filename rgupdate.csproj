@@ -9,7 +9,7 @@
     <RootNamespace>rgupdate</RootNamespace>
     <!-- Self-contained deployment optimization -->
     <PublishTrimmed>true</PublishTrimmed>
-    <PublishSingleFile>false</PublishSingleFile>
+    <PublishSingleFile>true</PublishSingleFile>
     <TrimMode>partial</TrimMode>
   </PropertyGroup>
 

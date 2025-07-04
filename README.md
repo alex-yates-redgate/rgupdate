@@ -17,6 +17,24 @@ A cross-platform .NET Core console application that manages Red Gate CLI tool ve
 
 More products (like `sqlcompare`) may be added in future versions.
 
+## Installation
+
+### GitHub Releases
+Download the latest single-file executable from the [GitHub Releases page](https://github.com/your-username/rgupdate/releases):
+
+- **Windows**: Download `rgupdate.exe` (≈16 MB)
+- **Linux**: Download `rgupdate` (≈18 MB)
+
+These are completely self-contained executables with no dependencies - just download and run!
+
+### Building from Source
+```bash
+git clone https://github.com/your-username/rgupdate.git
+cd rgupdate
+dotnet publish --configuration Release --runtime win-x64 --self-contained true
+# Or for Linux: --runtime linux-x64
+```
+
 ## Commands
 
 ### validate
