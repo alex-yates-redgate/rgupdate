@@ -79,4 +79,19 @@ public static class CommandHandlers
         option.SetDefaultValue(3);
         return option;
     }
+    
+    /// <summary>
+    /// Creates an output format option for commands that support structured output
+    /// </summary>
+    /// <returns>Configured output format option</returns>
+    public static Option<string?> CreateOutputOption()
+    {
+        return new Option<string?>(
+            name: "--output",
+            description: "Output format: 'json' or 'yaml' (default: table)"
+        )
+        {
+            ArgumentHelpName = "format"
+        };
+    }
 }

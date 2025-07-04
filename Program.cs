@@ -123,22 +123,24 @@ class Program
         var command = new Command("list", "List available versions of a product");
         var productArgument = CommandHandlers.CreateProductArgument();
         var allOption = CommandHandlers.CreateAllOption();
+        var outputOption = CommandHandlers.CreateOutputOption();
         
         command.AddArgument(productArgument);
         command.AddOption(allOption);
+        command.AddOption(outputOption);
 
-        command.SetHandler(async (string product, bool showAll) =>
+        command.SetHandler(async (string product, bool showAll, string? output) =>
         {
             try
             {
-                await ListingService.ListVersionsAsync(product, showAll);
+                await ListingService.ListVersionsAsync(product, showAll, output);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Listing failed: {ex.Message}");
                 Environment.Exit(1);
             }
-        }, productArgument, allOption);
+        }, productArgument, allOption, outputOption);
 
         return command;
     }
