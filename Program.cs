@@ -1145,7 +1145,7 @@ class Program
         }
         
         // Find the executable - different for flyway
-        string executablePath;
+        string? executablePath;
         string arguments;
         
         if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
@@ -1284,7 +1284,7 @@ class Program
         var activePath = GetProductActivePath(product);
         
         // Handle different executable structures for different products
-        string activeExecutablePath;
+        string? activeExecutablePath;
         string versionArgument;
         
         if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))

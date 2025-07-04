@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    timeout-minutes: 30
     strategy:
       matrix:
         os: [windows-latest, ubuntu-latest]
@@ -30,16 +31,24 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '9.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore --verbosity normal
+      env:
+        DOTNET_SYSTEM_NET_HTTP_USESOCKETSHTTPHANDLER: 0
 
     - name: Build
-      run: dotnet build --configuration Release --no-restore
+      run: dotnet build --configuration Release --no-restore --verbosity normal
 
     - name: Test
-      run: dotnet test --configuration Release --no-build --verbosity normal
+      run: |
+        if dotnet sln list | grep -i test; then
+          dotnet test --configuration Release --no-build --verbosity normal
+        else
+          echo "No test projects found - skipping tests"
+        fi
+      shell: bash
 
     - name: Publish
       run: dotnet publish --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
