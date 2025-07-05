@@ -32,19 +32,49 @@ jobs:
     - name: Build for testing
       run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
 
-    - name: Run tests
-      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults
+    - name: Run cross-platform tests
+      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName!~WindowsPathHandlingTests"
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: test-results
+        name: test-results-linux
+        path: ./TestResults/*.trx
+        retention-days: 30
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore rgupdate.sln --verbosity normal
+
+    - name: Build for testing
+      run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
+
+    - name: Run Windows-specific PATH tests
+      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName~WindowsPathHandlingTests"
+
+    - name: Upload Windows test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-windows
         path: ./TestResults/*.trx
         retention-days: 30
 
   build:
-    needs: test
+    needs: [test, test-windows]
     timeout-minutes: 30
     strategy:
       matrix:
@@ -100,7 +130,7 @@ jobs:
         retention-days: 90
 
   create-release-info:
-    needs: [test, build]
+    needs: [test, test-windows, build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     
