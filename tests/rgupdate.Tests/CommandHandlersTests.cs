@@ -77,7 +77,7 @@ public class CommandHandlersTests
     }
     
     [Theory]
-    [InlineData("1.0.0")]
+    [InlineData("2.1.10.8038")]
     [InlineData("2.1.3")]
     [InlineData("latest")]
     [InlineData(null)]

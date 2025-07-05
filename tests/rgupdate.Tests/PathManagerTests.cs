@@ -8,8 +8,8 @@ public class PathManagerTests
 {
     [Theory]
     [InlineData("flyway", "8.1.23")]
-    [InlineData("rgsubset", "2.1.15.1477")]
-    [InlineData("rganonymize", "2.2.2.448")]
+    [InlineData("rgsubset", "2.1.10.8038")]
+    [InlineData("rganonymize", "2.2.1.418")]
     public void GetProductVersionPath_WithValidProductAndVersion_ShouldReturnCorrectPath(string product, string version)
     {
         // Act
@@ -66,7 +66,7 @@ public class PathManagerTests
     public void GetProductVersionPath_WithInvalidProduct_ShouldThrowArgumentException()
     {
         // Act & Assert
-        var act = () => PathManager.GetProductVersionPath("invalid", "1.0.0");
+        var act = () => PathManager.GetProductVersionPath("invalid", "2.1.10.8038");
         act.Should().Throw<ArgumentException>();
     }
 
@@ -88,8 +88,8 @@ public class PathManagerTests
 
     [Theory]
     [InlineData("flyway", "8.1.23", "Flyway", "CLI")]
-    [InlineData("rgsubset", "2.1.15.1477", "Test Data Manager", "rgsubset")]
-    [InlineData("rganonymize", "2.2.2.448", "Test Data Manager", "rganonymize")]
+    [InlineData("rgsubset", "2.1.10.8038", "Test Data Manager", "rgsubset")]
+    [InlineData("rganonymize", "2.2.1.418", "Test Data Manager", "rganonymize")]
     public void GetProductVersionPath_ShouldFollowExpectedPathStructure(string product, string version, string expectedFamily, string expectedCliFolder)
     {
         // Act
@@ -108,8 +108,8 @@ public class PathManagerTests
 
     [Theory]
     [InlineData("FLYWAY", "8.1.23")]
-    [InlineData("RgSubset", "2.1.15.1477")]
-    [InlineData("RGANONYMIZE", "2.2.2.448")]
+    [InlineData("RgSubset", "2.1.10.8038")]
+    [InlineData("RGANONYMIZE", "2.2.1.418")]
     public void GetProductVersionPath_WithDifferentCase_ShouldWork(string product, string version)
     {
         // Act
@@ -126,7 +126,7 @@ public class PathManagerTests
     public void GetProductVersionPath_WithNullOrEmptyProduct_ShouldThrowException(string product)
     {
         // Act & Assert
-        var act = () => PathManager.GetProductVersionPath(product, "1.0.0");
+        var act = () => PathManager.GetProductVersionPath(product, "2.1.10.8038");
         act.Should().Throw<Exception>();
     }
 

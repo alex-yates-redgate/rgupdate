@@ -828,7 +828,13 @@ public static class EnvironmentManager
         {
             Console.WriteLine($"Downloading from: {url}");
             using var response = await httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"Failed to download {product} version {version}. " +
+                    $"HTTP {(int)response.StatusCode} {response.StatusCode} from URL: {url}");
+            }
             
             var totalBytes = response.Content.Headers.ContentLength ?? 0;
             var downloadedBytes = 0L;

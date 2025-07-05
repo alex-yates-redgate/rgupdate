@@ -33,10 +33,10 @@ public class ListingServiceTests
     [Theory]
     [InlineData("")]
     [InlineData(null)]
-    public async Task ListVersionsAsync_WithNullOrEmptyProduct_ShouldThrowException(string product)
+    public async Task ListVersionsAsync_WithNullOrEmptyProduct_ShouldThrowException(string? product)
     {
         // Act & Assert
-        var act = async () => await ListingService.ListVersionsAsync(product);
+        var act = async () => await ListingService.ListVersionsAsync(product!);
         await act.Should().ThrowAsync<Exception>();
     }
 
@@ -133,7 +133,7 @@ public class VersionOutputTests
 
     [Theory]
     [InlineData("1.0.0", 1024, "1 KB", "installed", false, true, false)]
-    [InlineData("2.1.15.1477", 37400000, "35.7 MB", "ACTIVE", true, true, true)]
+    [InlineData("2.1.10.8038", 37400000, "35.7 MB", "ACTIVE", true, true, true)]
     [InlineData("8.1.23", 0, "0 B", "-", false, false, false)]
     public void VersionOutput_WithProperties_ShouldSetCorrectly(string version, long sizeBytes, string sizeFormatted, string status, bool isLocalOnly, bool isInstalled, bool isActive)
     {
@@ -180,7 +180,7 @@ public class ListingOutputTests
 
     [Theory]
     [InlineData("flyway", "8.1.23", 100, 10, false)]
-    [InlineData("rgsubset", "2.1.15.1477", 54, 54, true)]
+    [InlineData("rgsubset", "2.1.10.8038", 54, 54, true)]
     [InlineData("rganonymize", "", 25, 25, true)]
     public void ListingOutput_WithProperties_ShouldSetCorrectly(string product, string activeVersion, int totalVersions, int displayedVersions, bool showingAll)
     {

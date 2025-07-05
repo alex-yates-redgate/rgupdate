@@ -54,8 +54,8 @@ public class InstallationServiceTests
     }
     
     [Theory]
-    [InlineData("rgsubset", "1.0.0")]
-    [InlineData("rganonymize", "2.1.0")]
+    [InlineData("rgsubset", "latest")]
+    [InlineData("rganonymize", "latest")]
     // Skip flyway as it may require specific setup  
     public async Task InstallProductAsync_WithSupportedProductAndVersion_CompletesSuccessfully(string product, string version)
     {

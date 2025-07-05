@@ -59,12 +59,12 @@ public class ActivationServiceTests
         // The method checks for installed versions first, so we get InvalidOperationException 
         // before it can validate the mutually exclusive options
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => 
-            ActivationService.SetActiveVersionAsync(product, "1.0.0", localCopy: true, localOnly: true));
+            ActivationService.SetActiveVersionAsync(product, "2.1.10.8038", localCopy: true, localOnly: true));
         Assert.Contains("No versions of", exception.Message);
     }
     
     [Theory]
-    [InlineData("rgsubset", "1.0.0")]
+    [InlineData("rgsubset", "2.1.10.8038")]
     [InlineData("rganonymize", "2.1.0")]
     [InlineData("flyway", "8.5.13")]
     public async Task SetActiveVersionAsync_WithSpecificVersionNotInstalled_ThrowsArgumentException(string product, string version)

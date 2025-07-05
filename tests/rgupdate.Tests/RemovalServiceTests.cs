@@ -56,7 +56,7 @@ public class RemovalServiceTests
     }
     
     [Theory]
-    [InlineData("rgsubset", "1.0.0")]
+    [InlineData("rgsubset", "2.1.10.8038")]
     [InlineData("rganonymize", "2.1.0")]
     [InlineData("flyway", "8.5.13")]
     public async Task RemoveVersionsAsync_WithSpecificVersionNotInstalled_ThrowsArgumentException(string product, string version)

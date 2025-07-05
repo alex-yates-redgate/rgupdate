@@ -96,7 +96,7 @@ public class ValidationServiceTests
     public async Task ValidateProductAsync_ValidProductWithSpecificVersion_ReturnsValidationResult(string product)
     {
         // Arrange
-        var version = "1.0.0"; // Test version that likely doesn't exist
+        var version = "2.1.10.8038"; // Test version that likely doesn't exist
         
         // Act
         var result = await ValidationService.ValidateProductAsync(product, version);

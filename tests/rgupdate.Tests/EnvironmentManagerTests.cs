@@ -97,7 +97,7 @@ public class EnvironmentManagerTests
 
     [Theory]
     [InlineData("1.0.0")]
-    [InlineData("2.1.15.1477")]
+    [InlineData("2.1.10.8038")]
     [InlineData("8.1.23")]
     public void ParseVersionFromOutput_WithValidVersionOutput_ShouldReturnVersion(string expectedVersion)
     {
@@ -165,8 +165,8 @@ public class EnvironmentManagerTests
 
     [Theory]
     [InlineData("flyway", "1.0.0")]
-    [InlineData("rgsubset", "2.1.15.1477")]
-    [InlineData("rganonymize", "2.2.2.448")]
+    [InlineData("rgsubset", "2.1.10.8038")]
+    [InlineData("rganonymize", "2.2.1.418")]
     public async Task GetLocalVersionInfoAsync_WithValidProductAndVersion_ShouldNotThrow(string product, string version)
     {
         // Act
@@ -183,7 +183,7 @@ public class EnvironmentManagerTests
     public async Task GetLocalVersionInfoAsync_WithValidProductAndVersionList_ShouldReturnEmptyList(string product)
     {
         // Arrange
-        var versions = new List<string> { "1.0.0", "2.0.0" };
+        var versions = new List<string> { "2.1.10.8038", "2.2.1.418" };
         
         // Act
         var versionInfos = await EnvironmentManager.GetLocalVersionInfoAsync(product, versions);
@@ -196,7 +196,7 @@ public class EnvironmentManagerTests
 
     [Theory]
     [InlineData("flyway", "1.0.0")]
-    [InlineData("rgsubset", "2.1.15.1477")]
+    [InlineData("rgsubset", "2.1.10.8038")]
     public void GetInstallationDiagnostics_WithValidProductAndVersion_ShouldReturnDiagnostics(string product, string version)
     {
         // Act
@@ -234,7 +234,7 @@ public class SemanticVersionTests
 {
     [Theory]
     [InlineData("1.0.0", 1, 0, 0, 0)]
-    [InlineData("2.1.15.1477", 2, 1, 15, 1477)]
+    [InlineData("2.1.10.8038", 2, 1, 10, 8038)]
     [InlineData("8.1.23", 8, 1, 23, 0)]
     [InlineData("1", 1, 0, 0, 0)]
     [InlineData("1.2", 1, 2, 0, 0)]
@@ -256,7 +256,7 @@ public class SemanticVersionTests
     [InlineData("2.0.0", "1.0.0", 1)]
     [InlineData("1.0.0", "1.0.0", 0)]
     [InlineData("1.2.3", "1.2.4", -1)]
-    [InlineData("2.1.15.1477", "2.1.15.1476", 1)]
+    [InlineData("2.1.10.8038", "2.1.10.8037", 1)]
     public void SemanticVersion_CompareTo_ShouldCompareCorrectly(string version1, string version2, int expectedResult)
     {
         // Arrange
