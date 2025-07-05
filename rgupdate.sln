@@ -2,7 +2,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rgupdate", "rgupdate.csproj", "{9571E892-95BD-1731-62C1-27DD577787BB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rgupdate", "src\rgupdate\rgupdate.csproj", "{9571E892-95BD-1731-62C1-27DD577787BB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "rgupdate.Tests", "tests\rgupdate.Tests\rgupdate.Tests.csproj", "{2A8B3C4D-5E6F-7890-1234-567890ABCDEF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -14,6 +16,10 @@ Global
 		{9571E892-95BD-1731-62C1-27DD577787BB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9571E892-95BD-1731-62C1-27DD577787BB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9571E892-95BD-1731-62C1-27DD577787BB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A8B3C4D-5E6F-7890-1234-567890ABCDEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A8B3C4D-5E6F-7890-1234-567890ABCDEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A8B3C4D-5E6F-7890-1234-567890ABCDEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A8B3C4D-5E6F-7890-1234-567890ABCDEF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
