@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using YamlDotNet.Serialization;
 
@@ -123,12 +124,46 @@ public static class ListingService
                 .OrderByDescending(x => x.Semantic)
                 .Select(x => x.Version)
                 .ToList();
-            
-            // Limit display unless --all is specified
-            var versionsToShow = showAll ? sortedVersions : sortedVersions.Take(Constants.DefaultVersionDisplayLimit).ToList();
 
             // Get active version
             var activeVersion = await EnvironmentManager.GetActiveVersionAsync(product);
+            
+            // Ensure important versions are always included
+            var versionsToShow = new List<EnvironmentManager.DisplayVersionInfo>();
+            
+            if (showAll)
+            {
+                versionsToShow = sortedVersions;
+            }
+            else
+            {
+                // Start with the most recent versions
+                var recentVersions = sortedVersions.Take(Constants.DefaultVersionDisplayLimit).ToList();
+                versionsToShow.AddRange(recentVersions);
+                
+                // Always include installed versions that aren't already shown
+                var installedVersionsToAdd = sortedVersions
+                    .Where(v => installedVersionsSet.Contains(v.Version) && !recentVersions.Any(r => r.Version == v.Version))
+                    .ToList();
+                
+                // Always include the active version if it's not already shown
+                if (!string.IsNullOrEmpty(activeVersion))
+                {
+                    var activeVersionToAdd = sortedVersions
+                        .Where(v => v.Version == activeVersion && !versionsToShow.Any(r => r.Version == v.Version))
+                        .ToList();
+                    versionsToShow.AddRange(activeVersionToAdd);
+                }
+                
+                versionsToShow.AddRange(installedVersionsToAdd);
+                
+                // Re-sort the final list
+                versionsToShow = versionsToShow
+                    .Select(v => new { Version = v, Semantic = new EnvironmentManager.SemanticVersion(v.Version) })
+                    .OrderByDescending(x => x.Semantic)
+                    .Select(x => x.Version)
+                    .ToList();
+            }
             
             // Handle structured output
             if (isStructuredOutput)
@@ -137,12 +172,13 @@ public static class ListingService
             }
             else
             {
-                await DisplayVersionTableAsync(product, versionsToShow, installedVersionsSet);
+                await DisplayVersionTableAsync(product, versionsToShow, installedVersionsSet, sortedVersions, showAll);
                 
-                if (!showAll && sortedVersions.Count > Constants.DefaultVersionDisplayLimit)
+                if (!showAll && sortedVersions.Count > versionsToShow.Count)
                 {
-                    var hiddenCount = sortedVersions.Count - Constants.DefaultVersionDisplayLimit;
+                    var hiddenCount = sortedVersions.Count - versionsToShow.Count;
                     Console.WriteLine($"{hiddenCount} older versions (To see all versions, run: rgupdate list {product} --all)");
+                    Console.WriteLine("Note: Installed and active versions are always shown");
                 }
                 
                 // Show active version info
@@ -321,15 +357,56 @@ public static class ListingService
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
     }
 
-    private static async Task DisplayVersionTableAsync(string product, List<EnvironmentManager.DisplayVersionInfo> versions, HashSet<string> installedVersions)
+    private static async Task DisplayVersionTableAsync(string product, List<EnvironmentManager.DisplayVersionInfo> versions, HashSet<string> installedVersions, List<EnvironmentManager.DisplayVersionInfo> allVersions, bool showAll)
     {
         Console.WriteLine("Version         | Release Date  | Size      | Status");
         Console.WriteLine("----------------|---------------|-----------|--------");
         
         var activeVersion = await EnvironmentManager.GetActiveVersionAsync(product);
         
-        foreach (var version in versions)
+        // Create a set of versions we're displaying for quick lookup
+        var displayedVersions = new HashSet<string>(versions.Select(v => v.Version), StringComparer.OrdinalIgnoreCase);
+        
+        // Track the index in the full list to detect skipped versions
+        var allVersionsIndex = 0;
+        
+        for (int i = 0; i < versions.Count; i++)
         {
+            var version = versions[i];
+            
+            // Find this version's position in the full list
+            while (allVersionsIndex < allVersions.Count && 
+                   !string.Equals(allVersions[allVersionsIndex].Version, version.Version, StringComparison.OrdinalIgnoreCase))
+            {
+                allVersionsIndex++;
+            }
+            
+            // Check if there are skipped versions between the previous displayed version and this one
+            if (i > 0 && !showAll)
+            {
+                var previousDisplayedVersion = versions[i - 1];
+                var previousIndexInAll = allVersions.FindIndex(v => 
+                    string.Equals(v.Version, previousDisplayedVersion.Version, StringComparison.OrdinalIgnoreCase));
+                
+                // If there are versions between the previous displayed and current that we're not showing
+                if (previousIndexInAll >= 0 && allVersionsIndex > previousIndexInAll + 1)
+                {
+                    var skippedCount = 0;
+                    for (int j = previousIndexInAll + 1; j < allVersionsIndex; j++)
+                    {
+                        if (!displayedVersions.Contains(allVersions[j].Version))
+                        {
+                            skippedCount++;
+                        }
+                    }
+                    
+                    if (skippedCount > 0)
+                    {
+                        Console.WriteLine($"{"...",-15} | {"...",-13} | {"...",-9} | ...");
+                    }
+                }
+            }
+            
             var releaseDateStr = version.IsLocalOnly ? "local-only" : version.LastModified?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "unknown";
             var sizeStr = FormatBytes(version.Size);
             
@@ -351,25 +428,27 @@ public static class ListingService
         }
     }
     
+
+    
     private static async Task DisplayActiveVersionInfoAsync(string product)
     {
         Console.WriteLine();
         Console.WriteLine("Active Version Status:");
         Console.WriteLine("======================");
         
-        // Check active directory version
+        // Check active installation version
         var activeDir = PathManager.GetProductActivePath(product);
         if (Directory.Exists(activeDir))
         {
-            // Try to determine version from active directory contents
+            // Try to determine version from active installation contents
             var activeVersion = await EnvironmentManager.GetActiveVersionAsync(product);
             if (activeVersion != null)
             {
-                Console.WriteLine($"✓ Active directory version: {activeVersion}");
+                Console.WriteLine($"✓ Active installation version: {activeVersion}");
             }
             else
             {
-                Console.WriteLine("⚠ Active directory exists but version could not be determined");
+                Console.WriteLine("⚠ Active installation exists but version could not be determined");
             }
         }
         else
@@ -400,6 +479,78 @@ public static class ListingService
             Console.WriteLine("   - Restart your terminal to pick up PATH changes");
             Console.WriteLine("   - Or run the PATH update command shown when you used 'rgupdate use'");
         }
+        
+        // Show location details
+        Console.WriteLine($"  Location: {activeDir}");
+        
+        // Check for local copy in current directory
+        var currentDir = Directory.GetCurrentDirectory();
+        var executableName = OperatingSystem.IsWindows() ? $"{product}.exe" : product;
+        var localExecutable = Path.Combine(currentDir, executableName);
+        
+        if (File.Exists(localExecutable))
+        {
+            Console.WriteLine($"💾 Local copy found: {localExecutable}");
+            
+            // Try to determine version of local copy
+            var localVersion = await DetermineVersionFromExecutable(localExecutable, product);
+            if (localVersion != null)
+            {
+                Console.WriteLine($"  Version: {localVersion}");
+                
+                // Check if local version differs from active installation
+                if (Directory.Exists(activeDir))
+                {
+                    var activeVersion = await EnvironmentManager.GetActiveVersionAsync(product);
+                    if (activeVersion != null && localVersion != activeVersion)
+                    {
+                        Console.WriteLine("  ⚠️  Warning: Local copy version differs from active installation");
+                    }
+                }
+            }
+        }
+        else
+        {
+            Console.WriteLine($"➖ No local copy in current directory");
+            Console.WriteLine($"  Would be: {localExecutable}");
+        }
+    }
+    
+    private static async Task<string?> DetermineVersionFromExecutable(string executablePath, string product)
+    {
+        try
+        {
+            var arguments = product.Equals("flyway", StringComparison.OrdinalIgnoreCase) 
+                ? "version" 
+                : "--version";
+            
+            var processInfo = new ProcessStartInfo
+            {
+                FileName = executablePath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = new Process { StartInfo = processInfo };
+            process.Start();
+
+            var output = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync();
+
+            if (process.ExitCode == 0 && !string.IsNullOrWhiteSpace(output))
+            {
+                return EnvironmentManager.ParseVersionFromOutput(output.Trim());
+            }
+        }
+        catch
+        {
+            // Ignore errors - executable might not be valid or have permission issues
+        }
+        
+        return null;
     }
     
     private static string FormatBytes(long bytes)

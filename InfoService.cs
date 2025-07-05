@@ -130,12 +130,12 @@ public static class InfoService
                     Console.WriteLine($"  Active Version: {activeVersion ?? "none/not in PATH"}");
                     
                     var activeDir = PathManager.GetProductActivePath(product);
-                    Console.WriteLine($"  Active Directory: {(Directory.Exists(activeDir) ? "exists" : "missing")}");
+                    Console.WriteLine($"  Active Installation: {(Directory.Exists(activeDir) ? "exists" : "missing")}");
                 }
                 else
                 {
                     Console.WriteLine("  Active Version: not installed");
-                    Console.WriteLine("  Active Directory: n/a");
+                    Console.WriteLine("  Active Installation: n/a");
                 }
             }
             catch (Exception ex)

@@ -94,4 +94,28 @@ public static class CommandHandlers
             ArgumentHelpName = "format"
         };
     }
+    
+    /// <summary>
+    /// Creates a local-copy option
+    /// </summary>
+    /// <returns>Configured local-copy option</returns>
+    public static Option<bool> CreateLocalCopyOption()
+    {
+        return new Option<bool>(
+            name: "--local-copy",
+            description: "Also create a local copy in the current directory"
+        );
+    }
+    
+    /// <summary>
+    /// Creates a local-only option
+    /// </summary>
+    /// <returns>Configured local-only option</returns>
+    public static Option<bool> CreateLocalOnlyOption()
+    {
+        return new Option<bool>(
+            name: "--local-only",
+            description: "Create only a local copy, skip PATH management"
+        );
+    }
 }

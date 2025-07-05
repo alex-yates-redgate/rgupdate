@@ -54,7 +54,7 @@ public static class RemovalService
         {
             Console.WriteLine();
             Console.WriteLine("⚠ Warning: This will remove the currently active version!");
-            Console.WriteLine("  The active directory will also be removed.");
+            Console.WriteLine("  The active installation will also be removed.");
         }
         
         // Confirm removal
@@ -206,7 +206,7 @@ public static class RemovalService
             }
         }
         
-        // Remove active directory if needed
+        // Remove active installation if needed
         if (removeActiveDirectory)
         {
             try
@@ -215,12 +215,12 @@ public static class RemovalService
                 if (Directory.Exists(activeDir))
                 {
                     Directory.Delete(activeDir, recursive: true);
-                    Console.WriteLine("  Removed active directory");
+                    Console.WriteLine("  Removed active installation");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"  Failed to remove active directory: {ex.Message}");
+                Console.WriteLine($"  Failed to remove active installation: {ex.Message}");
             }
         }
         

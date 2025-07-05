@@ -99,22 +99,26 @@ class Program
         var command = new Command("use", "Set a specific version as active and ensure it's in PATH");
         var productArgument = CommandHandlers.CreateProductArgument();
         var versionOption = CommandHandlers.CreateVersionOption();
+        var localCopyOption = CommandHandlers.CreateLocalCopyOption();
+        var localOnlyOption = CommandHandlers.CreateLocalOnlyOption();
         
         command.AddArgument(productArgument);
         command.AddOption(versionOption);
+        command.AddOption(localCopyOption);
+        command.AddOption(localOnlyOption);
 
-        command.SetHandler(async (string product, string? version) =>
+        command.SetHandler(async (string product, string? version, bool localCopy, bool localOnly) =>
         {
             try
             {
-                await ActivationService.SetActiveVersionAsync(product, version);
+                await ActivationService.SetActiveVersionAsync(product, version, localCopy, localOnly);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"❌ Activation failed: {ex.Message}");
                 Environment.Exit(1);
             }
-        }, productArgument, versionOption);
+        }, productArgument, versionOption, localCopyOption, localOnlyOption);
 
         return command;
     }

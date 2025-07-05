@@ -69,14 +69,27 @@ rgupdate get rgsubset --version 1
 Sets a specific version as active and ensures it's available in PATH. Copies the correct version to `Program Files/Red Gate/[product]/CLI/active` and manages PATH environment variables.
 
 ```bash
-rgupdate use [product] [--version 1.2.3]
+rgupdate use [product] [--version 1.2.3] [--local-copy] [--local-only]
 ```
 
 **Examples:**
 ```bash
 rgupdate use flyway --version 8.1.23
 rgupdate use rgsubset --version latest
+rgupdate use flyway --version 8.1.23 --local-copy
+rgupdate use rgsubset --version latest --local-only
 ```
+
+**Options:**
+- `--local-copy`: In addition to setting the global active version, creates a local copy of the CLI executable in the current directory for immediate use
+- `--local-only`: Only creates a local copy in the current directory without updating the global active version or PATH
+
+**⚠️ PATH Update Warnings:**
+When rgupdate modifies your PATH environment variable, you'll need to:
+- **Open a new terminal/command prompt**, OR
+- **Restart your current terminal session**
+
+Local copies work immediately without requiring terminal restart.
 
 ### list
 Lists available versions of a product, showing the most recent 10 versions by default, along with installation and active status.
@@ -298,6 +311,71 @@ Products are installed to the following paths based on their product family:
 The `RGUPDATE_INSTALL_LOCATION` environment variable is automatically set to:
 - **Windows**: `%Program Files%\Red Gate`
 - **Linux/macOS**: `/opt/Red Gate`
+
+## Local Copy Options and PATH Management
+
+### Local Copy Features
+
+The `use` command supports two local copy options for greater flexibility:
+
+**`--local-copy`** (Additive):
+- Creates a local copy in the current directory
+- **ALSO** updates the global active version and PATH
+- Best for: Immediate access while maintaining system-wide changes
+
+**`--local-only`** (Exclusive):  
+- Creates a local copy in the current directory only
+- **Does NOT** update the global active version or PATH
+- Best for: Project-specific versions, CI/CD environments, testing
+
+### Usage Examples
+
+```bash
+# Traditional approach - updates PATH only
+rgupdate use flyway --version 8.1.23
+
+# Additive approach - updates PATH AND creates local copy
+rgupdate use flyway --version 8.1.23 --local-copy
+
+# Local-only approach - creates local copy without touching PATH
+rgupdate use flyway --version 8.1.23 --local-only
+```
+
+### PATH Update Warnings
+
+Whenever rgupdate modifies your PATH environment variable, you'll see clear warnings:
+
+```
+📋 Next Steps:
+⚠️  PATH has been updated. To use the new version:
+   • Open a new terminal/command prompt, OR
+   • Restart your current terminal session
+
+💡 Local copy created. You can now use:
+   ./flyway.exe [command] [options]
+
+   This local copy works immediately without PATH changes.
+
+🔧 Environment: Windows, cmd, Administrator
+```
+
+**Why PATH Updates Require Terminal Restart:**
+- Environment variables are inherited when a terminal starts
+- Existing terminals don't automatically pick up PATH changes
+- Local copies bypass this limitation entirely
+
+### Best Practices
+
+**Use `--local-copy` when:**
+- You want both immediate access and permanent system changes
+- Working in development environments
+- Need to ensure the version persists across projects
+
+**Use `--local-only` when:**
+- Working on specific projects with version requirements
+- In CI/CD pipelines where you don't want to affect the system
+- Testing different versions without permanent changes
+- Working in environments where you can't modify PATH
 
 ## Building and Running
 
