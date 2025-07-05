@@ -56,10 +56,11 @@ public class InstallationServiceTests
     [Theory]
     [InlineData("rgsubset", "latest")]
     [InlineData("rganonymize", "latest")]
-    // Skip flyway as it may require specific setup  
+    // Skip flyway as it may require specific setup and exact version
     public async Task InstallProductAsync_WithSupportedProductAndVersion_CompletesSuccessfully(string product, string version)
     {
         // Note: This test actually installs the product since the environment supports it
+        // Using "latest" to avoid platform-specific version availability issues
         
         // Arrange & Act
         await InstallationService.InstallProductAsync(product, version);
