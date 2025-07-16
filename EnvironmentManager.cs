@@ -220,14 +220,13 @@ public static class EnvironmentManager
     /// <param name="product">The product name (flyway, rgsubset, rganonymize)</param>
     /// <param name="platform">The target platform (Windows, Linux)</param>
     /// <returns>List of version information</returns>
-    /// <exception cref="NotSupportedException">Thrown when flyway is requested</exception>
     /// <exception cref="ArgumentException">Thrown for unsupported products</exception>
     public static async Task<List<VersionInfo>> GetAllPublicVersionsAsync(string product, Platform platform)
     {
-        // Check for flyway - list command not yet supported
+        // Check for flyway - use Maven metadata instead of S3
         if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
         {
-            throw new NotSupportedException("ERROR: The --list command is not yet supported for flyway");
+            return await GetFlywayVersionsFromMavenAsync();
         }
         
         // Get the appropriate S3 URL for the product and platform
@@ -633,7 +632,16 @@ public static class EnvironmentManager
         {
             if (string.IsNullOrEmpty(versionSpec) || versionSpec.Equals("latest", StringComparison.OrdinalIgnoreCase))
             {
-                throw new NotSupportedException("ERROR: Flyway version listing is not yet supported. Please specify an exact version (e.g., --version 11.0.0)");
+                // Get the latest version from Maven metadata
+                var allVersions = await GetFlywayVersionsFromMavenAsync();
+                if (allVersions.Count == 0)
+                {
+                    throw new InvalidOperationException("ERROR: No Flyway versions found in Maven metadata");
+                }
+                
+                // Use the first (latest) version
+                versionSpec = allVersions.First().Version;
+                Console.WriteLine($"Using latest available Flyway version: {versionSpec}");
             }
             
             // For flyway, use the provided version directly
@@ -993,5 +1001,79 @@ public static class EnvironmentManager
         }
         
         return $"{size:0.#} {sizes[order]}";
+    }
+
+    /// <summary>
+    /// Gets Flyway versions from Maven metadata XML
+    /// </summary>
+    /// <returns>List of version information for Flyway</returns>
+    private static async Task<List<VersionInfo>> GetFlywayVersionsFromMavenAsync()
+    {
+        const string mavenMetadataUrl = "https://download.red-gate.com/maven/release/com/redgate/flyway/flyway-commandline/maven-metadata.xml";
+        
+        try
+        {
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromSeconds(30);
+            
+            var response = await httpClient.GetStringAsync(mavenMetadataUrl);
+            
+            // Parse the Maven metadata XML response
+            var versions = ParseMavenMetadataXmlResponse(response);
+            
+            return versions;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException($"Failed to fetch Flyway version information: {ex.Message}", ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            throw new InvalidOperationException($"Request timed out while fetching Flyway version information: {ex.Message}", ex);
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Error fetching Flyway version information: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Parses Maven metadata XML response to extract Flyway version information
+    /// </summary>
+    private static List<VersionInfo> ParseMavenMetadataXmlResponse(string xmlContent)
+    {
+        var versions = new List<VersionInfo>();
+        
+        try
+        {
+            var doc = XDocument.Parse(xmlContent);
+            var ns = doc.Root?.GetDefaultNamespace();
+            
+            // Maven metadata typically has structure: <metadata><versioning><versions><version>...</version></versions></versioning></metadata>
+            var versionElements = doc.Descendants("version");
+            
+            foreach (var versionElement in versionElements)
+            {
+                var versionString = versionElement.Value;
+                
+                if (!string.IsNullOrEmpty(versionString) && versionString.Contains('.'))
+                {
+                    // For Maven metadata, we don't have release date or file size info
+                    // Use a default date and size since these fields won't be displayed for Flyway
+                    versions.Add(new VersionInfo(versionString, DateTime.MinValue, 0));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to parse Maven metadata XML response: {ex.Message}", ex);
+        }
+        
+        // Sort versions by semantic version (most recent first)
+        return versions
+            .Select(v => new { Version = v, Semantic = new SemanticVersion(v.Version) })
+            .OrderByDescending(x => x.Semantic)
+            .Select(x => x.Version)
+            .ToList();
     }
 }

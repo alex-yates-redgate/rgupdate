@@ -359,8 +359,19 @@ public static class ListingService
 
     private static async Task DisplayVersionTableAsync(string product, List<EnvironmentManager.DisplayVersionInfo> versions, HashSet<string> installedVersions, List<EnvironmentManager.DisplayVersionInfo> allVersions, bool showAll)
     {
-        Console.WriteLine("Version         | Release Date  | Size      | Status");
-        Console.WriteLine("----------------|---------------|-----------|--------");
+        // Use simplified table format for Flyway (no release date or size columns)
+        var isFlyway = product.Equals("flyway", StringComparison.OrdinalIgnoreCase);
+        
+        if (isFlyway)
+        {
+            Console.WriteLine("Version         | Status");
+            Console.WriteLine("----------------|--------");
+        }
+        else
+        {
+            Console.WriteLine("Version         | Release Date  | Size      | Status");
+            Console.WriteLine("----------------|---------------|-----------|--------");
+        }
         
         var activeVersion = await EnvironmentManager.GetActiveVersionAsync(product);
         
@@ -402,13 +413,17 @@ public static class ListingService
                     
                     if (skippedCount > 0)
                     {
-                        Console.WriteLine($"{"...",-15} | {"...",-13} | {"...",-9} | ...");
+                        if (isFlyway)
+                        {
+                            Console.WriteLine($"{"...",-15} | ...");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"{"...",-15} | {"...",-13} | {"...",-9} | ...");
+                        }
                     }
                 }
             }
-            
-            var releaseDateStr = version.IsLocalOnly ? "local-only" : version.LastModified?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "unknown";
-            var sizeStr = FormatBytes(version.Size);
             
             var status = "";
             if (string.Equals(version.Version, activeVersion, StringComparison.OrdinalIgnoreCase))
@@ -423,8 +438,17 @@ public static class ListingService
             {
                 status = "-";
             }
-            
-            Console.WriteLine($"{version.Version,-15} | {releaseDateStr,-13} | {sizeStr,-9} | {status}");
+
+            if (isFlyway)
+            {
+                Console.WriteLine($"{version.Version,-15} | {status}");
+            }
+            else
+            {
+                var releaseDateStr = version.IsLocalOnly ? "local-only" : version.LastModified?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "unknown";
+                var sizeStr = FormatBytes(version.Size);
+                Console.WriteLine($"{version.Version,-15} | {releaseDateStr,-13} | {sizeStr,-9} | {status}");
+            }
         }
     }
     
