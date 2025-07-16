@@ -1,5 +1,11 @@
 name: Build and Publish
 
+# This workflow:
+# 1. Runs unit tests first (fails fast if tests don't pass)
+# 2. Only builds artifacts if tests pass
+# 3. Creates cross-platform executables for Windows and Linux
+# 4. Uploads test results and build artifacts
+
 on:
   push:
     branches: [ "main", "master", "develop" ]
@@ -7,7 +13,68 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore rgupdate.sln --verbosity normal
+
+    - name: Build for testing
+      run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
+
+    - name: Run cross-platform tests
+      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName!~WindowsPathHandlingTests"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-linux
+        path: ./TestResults/*.trx
+        retention-days: 30
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore rgupdate.sln --verbosity normal
+
+    - name: Build for testing
+      run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
+
+    - name: Run Windows-specific PATH tests
+      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName~WindowsPathHandlingTests"
+
+    - name: Upload Windows test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-windows
+        path: ./TestResults/*.trx
+        retention-days: 30
+
   build:
+    needs: [test, test-windows]
     timeout-minutes: 30
     strategy:
       matrix:
@@ -34,24 +101,15 @@ jobs:
         dotnet-version: '9.0.x'
 
     - name: Restore dependencies
-      run: dotnet restore rgupdate.csproj --verbosity normal
+      run: dotnet restore rgupdate.sln --verbosity normal
       env:
         DOTNET_SYSTEM_NET_HTTP_USESOCKETSHTTPHANDLER: 0
 
     - name: Build
-      run: dotnet build rgupdate.csproj --configuration Release --no-restore --verbosity normal
-
-    - name: Test
-      run: |
-        if dotnet sln list | grep -i test; then
-          dotnet test --configuration Release --no-build --verbosity normal
-        else
-          echo "No test projects found - skipping tests"
-        fi
-      shell: bash
+      run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
 
     - name: Publish
-      run: dotnet publish rgupdate.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
+      run: dotnet publish src/rgupdate/rgupdate.csproj --configuration Release --runtime ${{ matrix.runtime }} --self-contained true --output ./publish/${{ matrix.runtime }}
 
     - name: Create artifact directory
       shell: bash
@@ -72,7 +130,7 @@ jobs:
         retention-days: 90
 
   create-release-info:
-    needs: build
+    needs: [test, test-windows, build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     

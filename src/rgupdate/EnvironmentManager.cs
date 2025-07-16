@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Formats.Tar;
 
 namespace rgupdate;
 
@@ -626,6 +627,7 @@ public static class EnvironmentManager
     public static async Task<string> DownloadAndInstallAsync(string product, string? versionSpec = null)
     {
         var platform = OperatingSystem.IsWindows() ? Platform.Windows : Platform.Linux;
+        Console.WriteLine($"Installing {product} for platform: {platform}");
         
         // Special handling for flyway
         if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
@@ -836,7 +838,22 @@ public static class EnvironmentManager
         {
             Console.WriteLine($"Downloading from: {url}");
             using var response = await httpClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
+            
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorMessage = $"Failed to download {product} version {version}. " +
+                    $"HTTP {(int)response.StatusCode} {response.StatusCode} from URL: {url}";
+                
+                // Provide helpful hints for Linux users
+                if (!OperatingSystem.IsWindows() && response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                {
+                    errorMessage += $"\n\nNote: This may be because the Linux version of {product} v{version} is not available. " +
+                        "Linux and Windows versions may have different release schedules. " +
+                        "Try using a different version or 'latest'.";
+                }
+                
+                throw new InvalidOperationException(errorMessage);
+            }
             
             var totalBytes = response.Content.Headers.ContentLength ?? 0;
             var downloadedBytes = 0L;
@@ -974,13 +991,95 @@ public static class EnvironmentManager
     }
     
     /// <summary>
-    /// Extracts a TAR.GZ archive (placeholder for Linux support)
+    /// Extracts a TAR.GZ archive
     /// </summary>
     private static Task ExtractTarGz(string tarGzFilePath, string installPath, string product)
     {
-        // For now, this is a placeholder. In a real implementation, you'd use a library like SharpZipLib
-        // or call out to the system tar command
-        throw new NotImplementedException("TAR.GZ extraction is not yet implemented. This will be added for Linux support.");
+        try
+        {
+            // Use System.Formats.Tar which is available in .NET 7+
+            using var fileStream = new FileStream(tarGzFilePath, FileMode.Open, FileAccess.Read);
+            using var gzipStream = new System.IO.Compression.GZipStream(fileStream, System.IO.Compression.CompressionMode.Decompress);
+            
+            // Extract TAR entries
+            var reader = new System.Formats.Tar.TarReader(gzipStream);
+            
+            int extractedCount = 0;
+            while (reader.GetNextEntry() is { } entry)
+            {
+                if (entry.EntryType == System.Formats.Tar.TarEntryType.Directory)
+                    continue;
+                
+                // For products, we might want to skip the top-level directory
+                var relativePath = entry.Name;
+                if (product.Equals("flyway", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Skip the first directory level (e.g., "flyway-11.10.1/")
+                    var pathParts = relativePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    if (pathParts.Length > 1)
+                    {
+                        relativePath = string.Join("/", pathParts.Skip(1));
+                    }
+                    else
+                    {
+                        continue; // Skip the top-level directory entry itself
+                    }
+                }
+                
+                var destinationPath = Path.Combine(installPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                
+                // Ensure directory exists
+                var destinationDir = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrEmpty(destinationDir))
+                {
+                    Directory.CreateDirectory(destinationDir);
+                }
+                
+                // Extract file
+                entry.ExtractToFile(destinationPath, overwrite: true);
+                
+                // Set executable permissions on Unix-like systems for appropriate files
+                if (!OperatingSystem.IsWindows())
+                {
+                    var fileName = Path.GetFileName(relativePath);
+                    var dirName = Path.GetDirectoryName(relativePath);
+                    
+                    // Set executable for: .sh files, files in bin/ directories without extensions, 
+                    // and main executable files
+                    if (fileName.EndsWith(".sh") || 
+                        (dirName?.Contains("bin") == true && !Path.HasExtension(fileName)) ||
+                        fileName.Equals(product, StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            // Set executable permissions (equivalent to chmod +x)
+                            var fileInfo = new FileInfo(destinationPath);
+                            if (fileInfo.Exists)
+                            {
+                                File.SetUnixFileMode(destinationPath, 
+                                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                                    UnixFileMode.GroupRead | UnixFileMode.GroupExecute |
+                                    UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Warning: Could not set executable permissions for {destinationPath}: {ex.Message}");
+                        }
+                    }
+                }
+                
+                extractedCount++;
+            }
+            
+            Console.WriteLine($"✓ Extracted {extractedCount} files from TAR.GZ archive");
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"Failed to extract TAR.GZ archive: {ex.Message}", ex);
+        }
+        
+        return Task.CompletedTask;
     }
     
     /// <summary>

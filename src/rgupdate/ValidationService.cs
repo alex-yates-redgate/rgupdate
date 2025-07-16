@@ -17,6 +17,22 @@ public static class ValidationService
     {
         try
         {
+            // Check for null or empty product first
+            if (string.IsNullOrEmpty(product))
+            {
+                var message = "Product name cannot be null or empty";
+                Console.WriteLine($"❌ {message}");
+                return new ValidationResult(false, message);
+            }
+            
+            // Check if product is supported
+            if (!ProductConfiguration.IsProductSupported(product))
+            {
+                var message = $"Unsupported product: {product}. Supported products: {string.Join(", ", Constants.SupportedProducts)}";
+                Console.WriteLine($"❌ {message}");
+                return new ValidationResult(false, message);
+            }
+            
             Console.WriteLine($"Validating {product}...");
             
             // Get installed versions

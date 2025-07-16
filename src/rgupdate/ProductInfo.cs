@@ -43,6 +43,9 @@ public static class ProductConfiguration
     /// <returns>True if product is supported</returns>
     public static bool IsProductSupported(string product)
     {
+        if (string.IsNullOrEmpty(product))
+            return false;
+            
         return ProductMapping.ContainsKey(product.ToLowerInvariant());
     }
 }
