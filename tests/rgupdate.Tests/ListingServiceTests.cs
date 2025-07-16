@@ -54,14 +54,14 @@ public class ListingServiceTests
     }
 
     [Fact]
-    public async Task ListVersionsAsync_WithFlyway_ShouldThrowNotSupportedException()
+    public async Task ListVersionsAsync_WithFlyway_ShouldNotThrow()
     {
-        // Flyway specifically is not supported for listing
+        // Flyway should now be supported for listing
         
-        // Act & Assert
-        var act = async () => await ListingService.ListVersionsAsync("flyway", showAll: false, outputFormat: "json");
-        await act.Should().ThrowAsync<Exception>()
-            .WithMessage("*flyway*");
+        // Act & Assert - should not throw an exception
+        await ListingService.ListVersionsAsync("flyway", showAll: false, outputFormat: "json");
+        
+        // If we reach here without exception, the test passes
     }
 
     [Theory]

@@ -125,14 +125,17 @@ public class EnvironmentManagerTests
     }
 
     [Fact]
-    public async Task GetAllPublicVersionsAsync_WithFlyway_ShouldThrowNotSupportedException()
+    public async Task GetAllPublicVersionsAsync_WithFlyway_ShouldReturnVersions()
     {
-        // Flyway specifically is not supported for listing
+        // Flyway should now be supported for listing
         
-        // Act & Assert
-        var act = async () => await EnvironmentManager.GetAllPublicVersionsAsync("flyway", EnvironmentManager.Platform.Windows);
-        await act.Should().ThrowAsync<NotSupportedException>()
-            .WithMessage("*flyway*");
+        // Act
+        var versions = await EnvironmentManager.GetAllPublicVersionsAsync("flyway", EnvironmentManager.Platform.Windows);
+        
+        // Assert
+        versions.Should().NotBeNull();
+        versions.Should().NotBeEmpty();
+        versions.All(v => !string.IsNullOrEmpty(v.Version)).Should().BeTrue();
     }
 
     [Theory]
