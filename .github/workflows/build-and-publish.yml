@@ -249,7 +249,7 @@ jobs:
           
           ## Installation
           
-          ### Windows
+          ### Windows (PowerShell)
           ```powershell
           # Download and run directly
           Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/latest/download/rgupdate-windows.exe" -OutFile "rgupdate.exe"
