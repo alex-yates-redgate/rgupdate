@@ -41,7 +41,7 @@ curl -L -o rgupdate "https://github.com/alex-yates-redgate/rgupdate/releases/lat
 
 For convenience, use the provided download scripts:
 
-**Windows:**
+**Windows (PowerShell):**
 ```powershell
 # Download the script and run it
 Invoke-WebRequest -Uri "https://raw.githubusercontent.com/alex-yates-redgate/rgupdate/main/scripts/download-latest.ps1" -OutFile "download-latest.ps1"
