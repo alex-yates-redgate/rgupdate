@@ -35,7 +35,9 @@ The GitHub Actions workflow automatically creates releases with predictable URLs
 
 ### Triggers
 - Push to `main` branch
-- Only creates releases for the main branch (not feature branches)
+- Pull requests to `main` or `master` branches  
+- Manual workflow dispatch (with options to skip tests or release creation)
+- Only creates releases for the main branch (not feature branches or PRs)
 
 ### Jobs Sequence
 1. `test-windows` - Run Windows-specific tests
@@ -49,7 +51,23 @@ The GitHub Actions workflow automatically creates releases with predictable URLs
 
 ## Manual Release Process
 
-If you need to create a manual release:
+### Option 1: GitHub Actions Manual Trigger (Recommended)
+
+You can trigger the workflow manually from the GitHub UI:
+
+1. **Go to Actions tab** in your GitHub repository
+2. **Select "Build and Publish" workflow**
+3. **Click "Run workflow"** 
+4. **Configure options**:
+   - `Create a GitHub release`: Check this to create a release (only works on main branch)
+   - `Run tests before building`: Uncheck to skip tests for faster builds
+5. **Click "Run workflow"** to start
+
+This method uses the same automated process and creates the same predictable URLs.
+
+### Option 2: Manual Git Tag Release
+
+If you need to create a manual release with a specific version:
 
 1. **Create a tag**:
    ```bash
