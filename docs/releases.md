@@ -120,6 +120,33 @@ function Install-RgUpdate {
 1. **404 Not Found**: Check if the latest release exists and contains the expected files
 2. **Permission Denied**: Ensure the downloaded file has execute permissions (Linux/macOS)
 3. **Antivirus Blocks**: Some antivirus software may block downloaded executables
+4. **Release Creation Fails**: Check repository permissions and workflow permissions
+5. **"Resource not accessible by integration"**: Repository needs "Read and write permissions" for Actions
+
+### Permission Troubleshooting
+If releases fail to create:
+
+**Option 1: Repository Settings (Simple)**
+1. Go to **Settings** → **Actions** → **General**
+2. Under "Workflow permissions", select **"Read and write permissions"**
+3. Check **"Allow GitHub Actions to create and approve pull requests"**
+4. Re-run the failed workflow
+
+**Option 2: Personal Access Token (Recommended for Organizations)**
+1. Create a Personal Access Token:
+   - Go to **GitHub Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+   - Click **"Generate new token (classic)"**
+   - Set expiration and select scopes: `repo` (full repository access)
+   - Copy the generated token
+
+2. Add the token as a repository secret:
+   - Go to **Repository Settings** → **Secrets and variables** → **Actions**
+   - Click **"New repository secret"**
+   - Name: `GH_TOKEN`
+   - Value: Paste your Personal Access Token
+   - Click **"Add secret"**
+
+3. Re-run the failed workflow
 
 ### Verification
 ```bash
@@ -134,8 +161,27 @@ ls -la rgupdate
 
 1. **HTTPS Only**: All download URLs use HTTPS
 2. **GitHub Security**: Releases are hosted on GitHub's secure infrastructure
-3. **Checksum Verification**: Future enhancement could add SHA256 checksums
-4. **Code Signing**: Future enhancement for Windows executables
+3. **Repository Permissions**: The workflow requires `contents: write` permission to create releases
+4. **Checksum Verification**: Future enhancement could add SHA256 checksums
+5. **Code Signing**: Future enhancement for Windows executables
+
+## Repository Setup
+
+### Required Permissions
+The GitHub Actions workflow needs the following permissions (automatically configured in the workflow):
+- `contents: write` - To create releases and upload assets
+- `actions: read` - To access workflow artifacts
+- `packages: write` - For future package registry support
+
+**If using a Personal Access Token (`GH_TOKEN` secret):**
+- The token must have `repo` scope (full repository access)
+- This includes `contents:write`, `metadata:read`, and other necessary permissions
+
+### GitHub Settings
+Ensure your repository has:
+- **Actions enabled**: Go to Settings → Actions → General
+- **Workflow permissions**: Set to "Read and write permissions" or use the specific permissions in the workflow file
+- **Personal Access Token**: Create a secret named `GH_TOKEN` with a GitHub Personal Access Token that has `contents:write` permission
 
 ## Future Enhancements
 

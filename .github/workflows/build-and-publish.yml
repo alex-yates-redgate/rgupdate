@@ -7,6 +7,11 @@ name: Build and Publish
 # 4. Uploads test results and build artifacts
 # 5. Can be triggered manually via workflow_dispatch with optional parameters
 
+permissions:
+  contents: write
+  actions: read
+  packages: write
+
 on:
   push:
     branches: [ "main", "master", "develop" ]
@@ -146,7 +151,10 @@ jobs:
 
   create-release-info:
     needs: [test-windows, build]
-    if: always() && needs.build.result == 'success' && github.event_name == 'push'
+    if: |
+      always() && 
+      needs.build.result == 'success' && 
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     
     steps:
@@ -214,9 +222,12 @@ jobs:
       id: tag
       run: |
         # Generate a timestamp-based tag for the release
+        BUILD_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
         TAG="build-$(date -u +%Y%m%d-%H%M%S)-${{ github.run_number }}"
         echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "build_date=$BUILD_DATE" >> $GITHUB_OUTPUT
         echo "Generated tag: $TAG"
+        echo "Build date: $BUILD_DATE"
     
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -228,7 +239,7 @@ jobs:
           
           **Commit:** ${{ github.sha }}
           **Branch:** ${{ github.ref_name }}
-          **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Build Date:** ${{ steps.tag.outputs.build_date }}
           **Workflow Run:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
           
           ## Quick Download Links
@@ -263,4 +274,4 @@ jobs:
         prerelease: false
         generate_release_notes: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
