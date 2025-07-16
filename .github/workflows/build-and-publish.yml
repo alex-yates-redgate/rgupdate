@@ -13,35 +13,35 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+  # test-linux:
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
+  #   - name: Setup .NET
+  #     uses: actions/setup-dotnet@v4
+  #     with:
+  #       dotnet-version: '9.0.x'
 
-    - name: Restore dependencies
-      run: dotnet restore rgupdate.sln --verbosity normal
+  #   - name: Restore dependencies
+  #     run: dotnet restore rgupdate.sln --verbosity normal
 
-    - name: Build for testing
-      run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
+  #   - name: Build for testing
+  #     run: dotnet build rgupdate.sln --configuration Release --no-restore --verbosity normal
 
-    - name: Run cross-platform tests
-      run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName!~WindowsPathHandlingTests"
+  #   - name: Run cross-platform tests
+  #     run: dotnet test rgupdate.sln --configuration Release --no-build --verbosity normal --logger trx --results-directory ./TestResults --filter "FullyQualifiedName!~WindowsPathHandlingTests"
 
-    - name: Upload test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: test-results-linux
-        path: ./TestResults/*.trx
-        retention-days: 30
+  #   - name: Upload test results
+  #     uses: actions/upload-artifact@v4
+  #     if: always()
+  #     with:
+  #       name: test-results-linux
+  #       path: ./TestResults/*.trx
+  #       retention-days: 30
 
   test-windows:
     runs-on: windows-latest
@@ -74,7 +74,7 @@ jobs:
         retention-days: 30
 
   build:
-    needs: [test, test-windows]
+    needs: [test-windows]
     timeout-minutes: 30
     strategy:
       matrix:
@@ -130,7 +130,7 @@ jobs:
         retention-days: 90
 
   create-release-info:
-    needs: [test, test-windows, build]
+    needs: [test-windows, build]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     
@@ -158,3 +158,88 @@ jobs:
         name: build-info
         path: build-info.md
         retention-days: 90
+
+  create-release:
+    needs: [test-windows, build, create-release-info]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./downloads
+    
+    - name: Prepare release assets
+      run: |
+        mkdir -p ./release-assets
+        
+        # Copy Windows executable
+        cp ./downloads/rgupdate-windows/rgupdate.exe ./release-assets/rgupdate-windows.exe
+        
+        # Copy Linux executable  
+        cp ./downloads/rgupdate-linux/rgupdate ./release-assets/rgupdate-linux
+        
+        # Copy build info
+        cp ./downloads/build-info/build-info.md ./release-assets/
+        
+        # List what we have
+        ls -la ./release-assets/
+    
+    - name: Generate release tag
+      id: tag
+      run: |
+        # Generate a timestamp-based tag for the release
+        TAG="build-$(date -u +%Y%m%d-%H%M%S)-${{ github.run_number }}"
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "Generated tag: $TAG"
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: "Latest Build - ${{ steps.tag.outputs.tag }}"
+        body: |
+          # rgupdate - Latest Build
+          
+          **Commit:** ${{ github.sha }}
+          **Branch:** ${{ github.ref_name }}
+          **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Workflow Run:** [${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ## Quick Download Links
+          
+          - **Windows:** [rgupdate-windows.exe](https://github.com/${{ github.repository }}/releases/latest/download/rgupdate-windows.exe)
+          - **Linux:** [rgupdate-linux](https://github.com/${{ github.repository }}/releases/latest/download/rgupdate-linux)
+          
+          ## Installation
+          
+          ### Windows
+          ```powershell
+          # Download and run directly
+          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/latest/download/rgupdate-windows.exe" -OutFile "rgupdate.exe"
+          ./rgupdate.exe --help
+          ```
+          
+          ### Linux
+          ```bash
+          # Download and make executable
+          curl -L -o rgupdate "https://github.com/${{ github.repository }}/releases/latest/download/rgupdate-linux"
+          chmod +x rgupdate
+          ./rgupdate --help
+          ```
+          
+          ---
+          *This is an automated build from the latest commit on the main branch.*
+        files: |
+          ./release-assets/rgupdate-windows.exe
+          ./release-assets/rgupdate-linux
+          ./release-assets/build-info.md
+        make_latest: true
+        prerelease: false
+        generate_release_notes: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

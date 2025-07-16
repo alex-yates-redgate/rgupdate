@@ -19,11 +19,49 @@ More products (like `sqlcompare`) may be added in future versions.
 
 ## Installation
 
-### GitHub Releases
-Download the latest single-file executable from the [GitHub Releases page](https://github.com/alex-yates-redgate/rgupdate/releases):
+### Quick Download (Latest Version)
 
-- **Windows**: Download `rgupdate.exe` (≈16 MB)
-- **Linux**: Download `rgupdate` (≈18 MB)
+**Predictable URLs for automation:**
+- **Windows**: https://github.com/alex-yates-redgate/rgupdate/releases/latest/download/rgupdate-windows.exe
+- **Linux**: https://github.com/alex-yates-redgate/rgupdate/releases/latest/download/rgupdate-linux
+
+**One-liner download commands:**
+
+**Windows (PowerShell):**
+```powershell
+Invoke-WebRequest -Uri "https://github.com/alex-yates-redgate/rgupdate/releases/latest/download/rgupdate-windows.exe" -OutFile "rgupdate.exe"
+```
+
+**Linux/macOS:**
+```bash
+curl -L -o rgupdate "https://github.com/alex-yates-redgate/rgupdate/releases/latest/download/rgupdate-linux" && chmod +x rgupdate
+```
+
+### Automated Download Scripts
+
+For convenience, use the provided download scripts:
+
+**Windows:**
+```powershell
+# Download the script and run it
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/alex-yates-redgate/rgupdate/main/scripts/download-latest.ps1" -OutFile "download-latest.ps1"
+./download-latest.ps1
+```
+
+**Linux/macOS:**
+```bash
+# Download the script and run it
+curl -L -o download-latest.sh "https://raw.githubusercontent.com/alex-yates-redgate/rgupdate/main/scripts/download-latest.sh"
+chmod +x download-latest.sh
+./download-latest.sh
+```
+
+### Manual Download
+Browse all releases at the [GitHub Releases page](https://github.com/alex-yates-redgate/rgupdate/releases).
+
+**File Info:**
+- **Windows**: `rgupdate-windows.exe` (≈16 MB)
+- **Linux**: `rgupdate-linux` (≈18 MB)
 
 These are completely self-contained executables with no dependencies - just download and run!
 
