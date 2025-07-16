@@ -1,6 +1,6 @@
 # rgupdate
 
-A cross-platform .NET Core console application that manages Red Gate CLI tool versions on Windows and Linux.
+A cross-platform .NET Core console application that manages Red Gate CLI tool versions on Windows and Linux. Think of it like a minimal viable package manager for various Redgate CLIs.
 
 ## Features
 
