@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace rgupdate;
 
@@ -107,6 +108,10 @@ public static class ActivationService
         await CopyDirectoryAsync(sourceDir, activeDir);
         
         Console.WriteLine($"✓ {product} version {targetVersion} is now active");
+
+        // Ensure data.json exists and record the path for this product
+        EnsureDataJsonExists();
+        WritePathToDataJson(product, activeDir);
         
         // Update PATH if needed and track if it was updated
         pathWasUpdated = await UpdatePathEnvironmentAsync(product);
@@ -179,11 +184,11 @@ public static class ActivationService
             
             if (OperatingSystem.IsWindows())
             {
-                return await UpdateWindowsPathAsync(binPath);
+                return await UpdateWindowsPathAsync(product, binPath);
             }
             else
             {
-                return await UpdateUnixPathAsync(binPath);
+                return await UpdateUnixPathAsync(product, binPath);
             }
         }
         catch (Exception ex)
@@ -194,14 +199,14 @@ public static class ActivationService
         }
     }
     
-    private static async Task<bool> UpdateWindowsPathAsync(string pathToAdd)
+    private static async Task<bool> UpdateWindowsPathAsync(string product, string pathToAdd)
     {
         try
         {
             // Try to update machine-level PATH first
             var machinePath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.Machine) ?? "";
-            
-            if (!machinePath.Contains(pathToAdd, StringComparison.OrdinalIgnoreCase))
+
+            if (!PathTokenizedContains(machinePath, pathToAdd))
             {
                 try
                 {
@@ -215,7 +220,7 @@ public static class ActivationService
                 {
                     // Fallback to user-level PATH
                     var userPath = Environment.GetEnvironmentVariable("PATH", EnvironmentVariableTarget.User) ?? "";
-                    if (!userPath.Contains(pathToAdd, StringComparison.OrdinalIgnoreCase))
+                    if (!PathTokenizedContains(userPath, pathToAdd))
                     {
                         var newUserPath = string.IsNullOrEmpty(userPath) ? pathToAdd : $"{userPath};{pathToAdd}";
                         Environment.SetEnvironmentVariable("PATH", newUserPath, EnvironmentVariableTarget.User);
@@ -230,6 +235,15 @@ public static class ActivationService
             {
                 Console.WriteLine($"✓ PATH already contains: {pathToAdd}");
             }
+
+            // Fall back: if PATH doesn't show the entry in this session, rely on data.json for discovery
+            if (!PathTokenizedContains(machinePath, pathToAdd))
+            {
+                if (TryReadPathFromDataJson(product, out var recorded) && !string.IsNullOrWhiteSpace(recorded))
+                {
+                    Console.WriteLine($"ℹ PATH entry not visible in this session. Using data.json entry for '{product}': {recorded}");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -240,7 +254,7 @@ public static class ActivationService
         return false;
     }
     
-    private static async Task<bool> UpdateUnixPathAsync(string pathToAdd)
+    private static async Task<bool> UpdateUnixPathAsync(string product, string pathToAdd)
     {
         // For Unix systems, we would typically update shell profile files
         // This is a simplified implementation
@@ -421,5 +435,92 @@ public static class ActivationService
         }
 
         return string.Join(", ", context);
+    }
+
+    // ----------------------------
+    // data.json management helpers (use EnvironmentManager.GetInstallLocation())
+    // ----------------------------
+
+    private static string GetDataJsonPath()
+    {
+        var root = EnvironmentManager.GetInstallLocation();
+        return Path.Combine(root, "data.json");
+    }
+
+    private static void EnsureDataJsonExists()
+    {
+        var path = GetDataJsonPath();
+        var dir = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+        {
+            Directory.CreateDirectory(dir);
+        }
+        if (!File.Exists(path))
+        {
+            File.WriteAllText(path, "{}");
+        }
+    }
+
+    private static Dictionary<string, string> ReadPathsFromDataJsonInternal()
+    {
+        var path = GetDataJsonPath();
+        if (!File.Exists(path))
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var json = File.ReadAllText(path);
+        var dict = JsonSerializer.Deserialize<Dictionary<string, string>>(json)
+                   ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        return new Dictionary<string, string>(dict, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void WritePathToDataJson(string product, string pathValue)
+    {
+        var dict = ReadPathsFromDataJsonInternal();
+        dict[product] = pathValue;
+
+        var json = JsonSerializer.Serialize(dict, new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(GetDataJsonPath(), json);
+    }
+
+    private static bool TryReadPathFromDataJson(string product, out string? pathValue)
+    {
+        var dict = ReadPathsFromDataJsonInternal();
+        if (dict.TryGetValue(product, out var val))
+        {
+            pathValue = val;
+            return true;
+        }
+
+        pathValue = null;
+        return false;
+    }
+
+    private static bool PathTokenizedContains(string pathList, string candidate)
+    {
+        if (string.IsNullOrWhiteSpace(pathList)) return false;
+
+        var tokens = pathList.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var t in tokens)
+        {
+            if (PathsEqual(t, candidate)) return true;
+        }
+        return false;
+    }
+
+    private static bool PathsEqual(string a, string b)
+    {
+        var normA = NormalizePath(a);
+        var normB = NormalizePath(b);
+        return string.Equals(normA, normB, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
+    private static string NormalizePath(string p)
+    {
+        var norm = p.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        norm = norm.TrimEnd(Path.DirectorySeparatorChar);
+        return norm;
     }
 }
